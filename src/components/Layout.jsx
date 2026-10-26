@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Home, Radar, Rocket, Package, MessageCircle, BarChart3, Settings, Search, Plus, Bell, BellRing, Menu, X, Link2, ChevronRight, Sparkles, LogOut, AlertTriangle, Truck, Info,
+  Home, Radar, Rocket, Package, MessageCircle, BarChart3, Settings, Search, Plus, Bell, BellRing, Menu, X, ChevronRight, LogOut, AlertTriangle, Truck, Info,
 } from 'lucide-react'
 import { Logo, ProductThumb } from './brand'
 import { Badge, Button, Input, Modal, cn, useToast } from './ui'
 import { useStore } from '../store'
-import { PRODUCTOS } from '../data/mock'
-import { cop, miles } from '../lib/format'
+import { cop } from '../lib/format'
 import { titulo } from '../lib/mapeo'
 import { calcularReal } from '../lib/actividad'
 import { avisosActivos, avisosDisponibles, pedirPermisoAvisos } from '../lib/avisos'
@@ -56,7 +55,7 @@ export default function Layout() {
 }
 
 function Sidebar() {
-  const { pedidos, chats, modo } = useStore()
+  const { pedidos, chats } = useStore()
   const pendientes = pedidos.filter((p) => p.estado === 'Pendiente' || p.estado === 'Cambio de dirección').length
   const noLeidos = chats.reduce((a, c) => a + c.noLeidos, 0)
   const items = [
@@ -79,7 +78,6 @@ function Sidebar() {
         ))}
       </nav>
       <div className="mt-auto">
-        {modo === 'demo' && <Creditos />}
         <NavItem to="/configuracion" label="Configuración" icon={Settings} />
       </div>
     </div>
@@ -111,23 +109,6 @@ function NavItem({ to, label, icon: Icon, end, badge, hot }) {
         </>
       )}
     </NavLink>
-  )
-}
-
-function Creditos() {
-  return (
-    <div className="mx-1 mb-3 rounded-xl border border-line bg-gradient-to-b from-brand/10 to-transparent p-3.5">
-      <div className="flex items-center gap-2 text-xs font-medium">
-        <Sparkles size={14} className="text-accent" /> Créditos IA
-      </div>
-      <div className="mt-2 flex items-baseline gap-1">
-        <span className="text-lg font-semibold">340</span>
-        <span className="text-xs text-muted">/ 500</span>
-      </div>
-      <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.08]">
-        <div className="h-full w-[68%] rounded-full bg-gradient-to-r from-brand to-accent" />
-      </div>
-    </div>
   )
 }
 
@@ -169,7 +150,7 @@ const ICONO = { pedido: Package, guia: Truck, mensaje: MessageCircle }
 const VISTO = 'ingenio.avisos.visto'
 
 function Campana() {
-  const { modo, pedidos, chats } = useStore()
+  const { pedidos, chats } = useStore()
   const [open, setOpen] = useState(false)
   const [activos, setActivos] = useState(avisosActivos())
   const [visto, setVisto] = useState(() => {
@@ -179,7 +160,7 @@ function Campana() {
       return ''
     }
   })
-  const actividad = useMemo(() => (modo === 'real' ? calcularReal(pedidos, chats).actividad : []), [modo, pedidos, chats])
+  const actividad = useMemo(() => calcularReal(pedidos, chats).actividad, [pedidos, chats])
   const nuevos = actividad.filter((a) => a.t > visto).length
 
   const abrir = () => {
@@ -198,7 +179,7 @@ function Campana() {
     <div className="relative">
       <Button variant="ghost" size="icon" aria-label="Notificaciones" className="relative" onClick={abrir}>
         <Bell size={18} />
-        {(modo === 'demo' || nuevos > 0) && <span className="absolute top-2 right-2 size-2 rounded-full bg-brand ring-2 ring-bg" />}
+        {nuevos > 0 && <span className="absolute top-2 right-2 size-2 rounded-full bg-brand ring-2 ring-bg" />}
       </Button>
       {open && (
         <>
@@ -218,7 +199,7 @@ function Campana() {
             </div>
             <div className="max-h-96 overflow-y-auto">
               {actividad.length === 0 ? (
-                <p className="px-4 py-8 text-center text-sm text-muted">{modo === 'demo' ? 'En modo demo la actividad está en Inicio.' : 'Sin actividad todavía.'}</p>
+                <p className="px-4 py-8 text-center text-sm text-muted">Sin actividad todavía.</p>
               ) : (
                 actividad.map((a, i) => {
                   const I = ICONO[a.tipo] || Info
@@ -244,10 +225,10 @@ function Campana() {
 }
 
 function MenuUsuario() {
-  const { modo, session, cerrarSesion } = useStore()
+  const { session, cerrarSesion } = useStore()
   const [open, setOpen] = useState(false)
-  const email = session?.user?.email
-  const ini = email ? email.slice(0, 2).toUpperCase() : 'JA'
+  const email = session?.user?.email || ''
+  const ini = email.slice(0, 2).toUpperCase()
   return (
     <div className="relative">
       <button
@@ -262,14 +243,12 @@ function MenuUsuario() {
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute top-11 right-0 z-50 w-60 animate-fade-in rounded-xl border border-line-strong bg-card p-1.5 shadow-2xl">
             <div className="px-3 py-2">
-              <div className="truncate text-sm font-medium">{email || 'Modo demo'}</div>
-              <div className="text-xs text-muted">{modo === 'real' ? 'Conectado a Supabase' : 'Sin backend · datos de ejemplo'}</div>
+              <div className="truncate text-sm font-medium">{email}</div>
+              <div className="text-xs text-muted">Conectado a Supabase</div>
             </div>
-            {modo === 'real' && (
-              <button onClick={cerrarSesion} className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted hover:bg-white/[0.05] hover:text-fg">
-                <LogOut size={15} /> Cerrar sesión
-              </button>
-            )}
+            <button onClick={cerrarSesion} className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted hover:bg-white/[0.05] hover:text-fg">
+              <LogOut size={15} /> Cerrar sesión
+            </button>
           </div>
         </>
       )}
@@ -317,23 +296,20 @@ function AvisoDatos() {
 }
 
 function NuevoLanzamiento({ open, onClose }) {
-  const { modo, productos, crearLanzamiento, lanzamientos } = useStore()
+  const { productos, crearLanzamiento, lanzamientos } = useStore()
   const nav = useNavigate()
   const toast = useToast()
   const [q, setQ] = useState('')
   const [creando, setCreando] = useState(null)
-  const real = modo === 'real'
 
-  const sugeridos = real
-    ? productos
-        .filter((p) => p.estado !== 'descartado' && (!q || p.nombre.toLowerCase().includes(q.toLowerCase())))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 6)
-    : PRODUCTOS.slice(0, 4)
+  const sugeridos = productos
+    .filter((p) => p.estado !== 'descartado' && (!q || p.nombre.toLowerCase().includes(q.toLowerCase())))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6)
 
   const lanzar = async (p) => {
     setCreando(p.id)
-    const r = await crearLanzamiento(real ? p : p.id)
+    const r = await crearLanzamiento(p)
     setCreando(null)
     if (r.error) return toast(`No se creó: ${r.error}`, 'warn')
     onClose()
@@ -343,22 +319,16 @@ function NuevoLanzamiento({ open, onClose }) {
   }
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="Nuevo lanzamiento"
-      subtitle={real ? 'Elige un producto del Radar para empezar su análisis.' : 'Pega el enlace del producto en Dropi o elige uno sugerido por el Radar.'}
-      footer={<Button onClick={onClose}>Cancelar</Button>}
-    >
+    <Modal open={open} onClose={onClose} title="Nuevo lanzamiento" subtitle="Elige un producto del Radar para empezar su análisis." footer={<Button onClick={onClose}>Cancelar</Button>}>
       <div className="relative">
-        {real ? <Search size={16} className="absolute top-1/2 left-3 -translate-y-1/2 text-faint" /> : <Link2 size={16} className="absolute top-1/2 left-3 -translate-y-1/2 text-faint" />}
-        <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={real ? 'Buscar producto del Radar' : 'https://app.dropi.co/productos/…'} className="pl-9" />
+        <Search size={16} className="absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
+        <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar producto del Radar" className="pl-9" />
       </div>
-      <div className="mt-5 mb-2 text-xs font-medium text-muted">{real ? 'Mejores candidatos del Radar' : 'Sugeridos por el Radar'}</div>
+      <div className="mt-5 mb-2 text-xs font-medium text-muted">Mejores candidatos del Radar</div>
       <div className="flex flex-col gap-1.5">
         {sugeridos.length === 0 && <p className="py-4 text-center text-sm text-muted">No hay productos que coincidan.</p>}
         {sugeridos.map((p) => {
-          const ya = real && lanzamientos.some((l) => l.productoId === p.id)
+          const ya = lanzamientos.some((l) => l.productoId === p.id)
           return (
             <button
               key={p.id}
@@ -366,11 +336,12 @@ function NuevoLanzamiento({ open, onClose }) {
               onClick={() => lanzar(p)}
               className="group flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-panel p-2.5 text-left transition hover:border-line-strong hover:bg-hover disabled:opacity-60"
             >
-              {real ? <ProductThumb p={{ imagen: p.ejemplos?.[0]?.imagen, hue: 24 }} className="size-10" /> : <ProductThumb p={p} className="size-10" />}
+              <ProductThumb p={{ imagen: p.ejemplos?.[0]?.imagen, hue: 24 }} className="size-10" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{p.nombre}</div>
                 <div className="text-xs text-muted">
-                  {real ? `Score ${p.score} · ${titulo(p.categoria)}${p.precio_venta_est ? ` · venta ${cop(p.precio_venta_est)}` : ''}` : `Costo ${cop(p.costo)} · ${miles(p.v7)} ventas/7d`}
+                  Score {p.score} · {titulo(p.categoria)}
+                  {p.precio_venta_est ? ` · venta ${cop(p.precio_venta_est)}` : ''}
                 </div>
               </div>
               {ya ? <Badge tone="info">Ya lanzado</Badge> : <ChevronRight size={16} className="text-faint transition group-hover:translate-x-0.5 group-hover:text-brand" />}

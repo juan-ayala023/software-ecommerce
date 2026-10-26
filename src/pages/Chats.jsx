@@ -1,18 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Bot, CheckCircle2, MapPin, MessageCircle, MessagesSquare, Phone, Search, Send, Truck, XCircle, PanelRight, Package, Smile, Paperclip, X } from 'lucide-react'
-import { Badge, Button, EmptyState, Field, Input, Modal, Select, Skeleton, cn, useFakeLoading, useToast } from '../components/ui'
-import { ProductThumb } from '../components/brand'
+import { Badge, Button, EmptyState, Field, Input, Modal, Select, Skeleton, cn, useToast } from '../components/ui'
 import { useStore } from '../store'
-import { TONO_ESTADO, TRANSPORTADORAS, producto } from '../data/mock'
+import { TONO_ESTADO, TRANSPORTADORAS } from '../data/constantes'
 import { cop } from '../lib/format'
 
 const iniciales = (n) => n.split(' ').slice(0, 2).map((x) => x[0]).join('')
 
 export default function Chats() {
-  const { chats, pedidos, enviarMensaje, marcarLeido, actualizarPedido, cargaLenta, cargandoDatos, modo, puedeEnviar } = useStore()
+  const { chats, pedidos, enviarMensaje, marcarLeido, actualizarPedido, cargandoDatos, puedeEnviar } = useStore()
   const [params, setParams] = useSearchParams()
-  const loading = useFakeLoading(cargaLenta ? 2500 : 500) || cargandoDatos
+  const loading = cargandoDatos
   const toast = useToast()
   const [q, setQ] = useState('')
   const [panel, setPanel] = useState(false)
@@ -171,9 +170,8 @@ export default function Chats() {
             onClose={() => setGuia(false)}
             onSave={(t, g) => {
               setGuia(false)
-              // En modo real el mensaje de despacho lo envía n8n (webhook de guía)
-              const msg = modo === 'demo' ? `${pedido.cliente.split(' ')[0]}, tu pedido ya salió por ${t} 🚚 Guía ${g}. Ten listos los ${cop(pedido.total)} en efectivo.` : null
-              accion({ estado: 'Despachado', transportadora: t, guia: g }, msg, 'Guía enviada')
+              // El mensaje de despacho lo envía n8n con la plantilla aprobada
+              accion({ estado: 'Despachado', transportadora: t, guia: g }, null, 'Guía enviada')
             }}
           />
         </>
@@ -307,7 +305,6 @@ function Composer({ onSend, habilitado }) {
 }
 
 function PanelPedido({ pedido, onClose, onConfirmar, onGuia, onCancelar }) {
-  const pr = pedido.productoId ? producto(pedido.productoId) : null
   const cerrado = ['Despachado', 'Entregado', 'Devuelto', 'Cancelado'].includes(pedido.estado)
   return (
     <div className="flex flex-col">
@@ -338,17 +335,10 @@ function PanelPedido({ pedido, onClose, onConfirmar, onGuia, onCancelar }) {
         <div>
           <div className="mb-1.5 text-xs text-faint">Productos</div>
           <div className="flex items-center gap-3 rounded-xl border border-line bg-panel p-2.5">
-            {pr ? (
-              <ProductThumb p={pr} className="size-11" />
-            ) : (
-              <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-muted">
-                <Package size={18} />
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="line-clamp-2 text-sm font-medium">{pedido.producto}</div>
-              {pedido.qty && <div className="text-xs text-muted">Cantidad: {pedido.qty}</div>}
+            <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-muted">
+              <Package size={18} />
             </div>
+            <div className="min-w-0 flex-1 line-clamp-2 text-sm font-medium">{pedido.producto}</div>
           </div>
           <div className="mt-3 flex justify-between text-sm">
             <span className="text-muted">Total a cobrar</span>

@@ -121,9 +121,9 @@ export function anunciosBase(p) {
       titulo: oferta,
     },
     {
-      id: 'AD3', angulo: 'Prueba social', gancho: `+1.000 colombianos ya lo tienen`,
-      subtitulos: ['Clientes felices en todo el país', 'Garantía de satisfacción', 'Últimas unidades'],
-      texto: `⭐ Lo que dicen nuestros clientes de ${n}.\n\nCompra segura y pago en efectivo cuando te llegue.\n\n🚚 Envío a toda Colombia · PAGAS AL RECIBIR`,
+      id: 'AD3', angulo: 'Prueba social', gancho: `Lo que dicen quienes ya lo usan`,
+      subtitulos: ['Pon aquí un testimonio real', 'Garantía de satisfacción', 'Pídelo hoy'],
+      texto: `⭐ ${n}: pon aquí la opinión de un cliente real.\n\nCompra segura y pago en efectivo cuando te llegue.\n\n🚚 Envío a toda Colombia · PAGAS AL RECIBIR`,
       titulo: `${n} · Envío gratis`,
     },
   ]

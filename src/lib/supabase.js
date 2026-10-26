@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Sin variables de entorno el panel corre en modo demo con datos de ejemplo
+// Sin variables de entorno el panel muestra un aviso de configuración (no hay datos de ejemplo)
 export const supabase = url && key ? createClient(url, key) : null
 
 // Webhook único de n8n para las acciones que salen por WhatsApp (responder, guia)

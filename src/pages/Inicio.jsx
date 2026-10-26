@@ -2,43 +2,35 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   MessageCircle,
-  ShoppingBag, CheckCircle2, Truck, Wallet, ArrowUpRight, Rocket, Activity, Megaphone, FileText, AlertTriangle, Radar, TrendingDown, ImageOff, ChevronRight,
+  ShoppingBag, CheckCircle2, Truck, Wallet, ArrowUpRight, Rocket, Activity, Radar, ChevronRight,
 } from 'lucide-react'
-import { Card, CardHeader, EmptyState, Button, Skeleton, useFakeLoading, cn } from '../components/ui'
+import { Card, CardHeader, EmptyState, Button, Skeleton, cn } from '../components/ui'
 import { ProductThumb } from '../components/brand'
 import { MiniEtapas, VeredictoBadge } from '../components/launch'
 import { useStore } from '../store'
-import { ACTIVIDAD, ETAPAS, KPIS } from '../data/mock'
+import { ETAPAS } from '../data/constantes'
 import { cop } from '../lib/format'
 import { calcularReal } from '../lib/actividad'
 
 const ICONO_ACT = {
   pedido: { i: CheckCircle2, c: 'text-ok bg-ok/10' },
-  creativo: { i: Megaphone, c: 'text-brand bg-brand/10' },
   guia: { i: Truck, c: 'text-info bg-info/10' },
-  landing: { i: FileText, c: 'text-muted bg-white/[0.06]' },
-  alerta: { i: AlertTriangle, c: 'text-accent bg-accent/10' },
-  radar: { i: Radar, c: 'text-brand bg-brand/10' },
-  campana: { i: TrendingDown, c: 'text-ok bg-ok/10' },
-  revisar: { i: ImageOff, c: 'text-accent bg-accent/10' },
   mensaje: { i: MessageCircle, c: 'text-info bg-info/10' },
 }
 
 export default function Inicio() {
-  const { lanzamientos, vacio, cargaLenta, modo, pedidos, chats, cargandoDatos, session } = useStore()
-  const loading = useFakeLoading(cargaLenta ? 2500 : 600) || cargandoDatos
+  const { lanzamientos, pedidos, chats, cargandoDatos: loading, session } = useStore()
   const enCurso = lanzamientos.filter((l) => l.veredicto !== 'DESCARTAR' && l.etapa < 6)
-  const real = modo === 'real'
-  const { kpis: K, actividad } = useMemo(() => (real ? calcularReal(pedidos, chats) : { kpis: KPIS, actividad: ACTIVIDAD }), [real, pedidos, chats])
+  const { kpis: K, actividad } = useMemo(() => calcularReal(pedidos, chats), [pedidos, chats])
 
   const kpis = [
-    { label: 'Pedidos hoy', value: vacio ? '0' : K.pedidosHoy, delta: real ? `${pedidos.length} en total` : '+3 vs ayer', icon: ShoppingBag, tone: 'text-brand' },
-    { label: 'Confirmados', value: vacio ? '0' : K.confirmados, delta: real ? 'De los pedidos de hoy' : '75% de hoy', icon: CheckCircle2, tone: 'text-ok' },
-    { label: 'Por despachar', value: vacio ? '0' : K.porDespachar, delta: real ? 'Confirmados sin guía' : 'Corte 3:00 p. m.', icon: Truck, tone: 'text-info' },
-    { label: 'Ventas semana', value: vacio ? '$0' : cop(K.ventasSemana), delta: real ? 'Últimos 7 días, sin cancelados' : '+18% vs semana pasada', icon: Wallet, tone: 'text-accent' },
+    { label: 'Pedidos hoy', value: K.pedidosHoy, delta: `${pedidos.length} en total`, icon: ShoppingBag, tone: 'text-brand' },
+    { label: 'Confirmados', value: K.confirmados, delta: 'De los pedidos de hoy', icon: CheckCircle2, tone: 'text-ok' },
+    { label: 'Por despachar', value: K.porDespachar, delta: 'Confirmados sin guía', icon: Truck, tone: 'text-info' },
+    { label: 'Ventas semana', value: cop(K.ventasSemana), delta: 'Últimos 7 días, sin cancelados', icon: Wallet, tone: 'text-accent' },
   ]
   const hoyTxt = new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())
-  const nombre = real ? session?.user?.email?.split('@')[0] : 'Juan'
+  const nombre = session?.user?.email?.split('@')[0]
 
   return (
     <>
@@ -63,7 +55,7 @@ export default function Inicio() {
                   <k.icon size={18} strokeWidth={1.8} className={k.tone} />
                 </div>
                 <div className="mt-3 text-xl font-semibold tracking-tight sm:text-[28px]">{k.value}</div>
-                <div className="mt-1 text-[11px] text-faint sm:text-xs">{vacio ? 'Sin movimiento' : k.delta}</div>
+                <div className="mt-1 text-[11px] text-faint sm:text-xs">{k.delta}</div>
               </>
             )}
           </Card>
@@ -143,7 +135,7 @@ export default function Inicio() {
                   </div>
                 </div>
               ))
-            ) : vacio || actividad.length === 0 ? (
+            ) : actividad.length === 0 ? (
               <EmptyState icon={Activity} title="Todo tranquilo" text="Aquí verás confirmaciones, guías y alertas en tiempo real." className="py-8" />
             ) : (
               <ol className="relative">

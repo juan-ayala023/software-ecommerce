@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Rocket, Radar, ChevronRight, User } from 'lucide-react'
-import { Button, Card, EmptyState, PageHeader, Segmented, Skeleton, useFakeLoading } from '../components/ui'
+import { Button, Card, EmptyState, PageHeader, Segmented, Skeleton } from '../components/ui'
 import { ProductThumb } from '../components/brand'
 import { MiniEtapas, VeredictoBadge } from '../components/launch'
 import { useStore } from '../store'
-import { ETAPAS } from '../data/mock'
+import { ETAPAS } from '../data/constantes'
 
 export default function Lanzamientos() {
-  const { lanzamientos, cargaLenta, cargandoDatos, faltanTablas } = useStore()
-  const loading = useFakeLoading(cargaLenta ? 2500 : 550) || cargandoDatos
+  const { lanzamientos, cargandoDatos, faltanTablas } = useStore()
+  const loading = cargandoDatos
   const [f, setF] = useState('activos')
   const lista = lanzamientos.filter((l) =>
     f === 'activos' ? l.veredicto !== 'DESCARTAR' && l.etapa < 6 : f === 'ventas' ? l.etapa === 6 : f === 'descartados' ? l.veredicto === 'DESCARTAR' : true

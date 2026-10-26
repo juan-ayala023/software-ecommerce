@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Plug, SlidersHorizontal, FlaskConical, CheckCircle2, AlertTriangle, CircleOff, Store, Save, BellRing, Smartphone } from 'lucide-react'
-import { Badge, Button, Card, CardHeader, Field, Input, PageHeader, Switch, useToast } from '../components/ui'
+import { Plug, SlidersHorizontal, CheckCircle2, AlertTriangle, CircleOff, Store, Save, BellRing, Smartphone } from 'lucide-react'
+import { Badge, Button, Card, CardHeader, Field, Input, PageHeader, useToast } from '../components/ui'
 import { useStore } from '../store'
-import { INTEGRACIONES, PARAMETROS } from '../data/mock'
+import { PARAMETROS } from '../data/constantes'
 import { WEBHOOK } from '../lib/supabase'
 import { fechaCorta } from '../lib/mapeo'
 import { miles } from '../lib/format'
@@ -17,9 +17,8 @@ const EST = {
 const num = (v) => Number(String(v).replace(/\D/g, '')) || 0
 
 export default function Configuracion() {
-  const { modo, vacio, setVacio, cargaLenta, setCargaLenta, config, guardarConfig, metricas, faltanTablas, autorizado } = useStore()
+  const { config, guardarConfig, metricas, faltanTablas, autorizado } = useStore()
   const toast = useToast()
-  const real = modo === 'real'
   const [f, setF] = useState(null)
   const [guardando, setGuardando] = useState(false)
   const [avisos, setAvisos] = useState(avisosActivos())
@@ -39,10 +38,10 @@ export default function Configuracion() {
 
   if (!f) return null
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
-  const puedeGuardar = real && !faltanTablas && !!config
+  const puedeGuardar = !faltanTablas && !!config
 
   const guardar = async () => {
-    if (!puedeGuardar) return toast(real ? 'Ejecuta el SQL 002 para guardar la configuración' : 'En modo demo no se guarda', 'info')
+    if (!puedeGuardar) return toast('Ejecuta el SQL 002 para guardar la configuración', 'info')
     setGuardando(true)
     const r = await guardarConfig({
       marca: f.marca,
@@ -58,8 +57,7 @@ export default function Configuracion() {
   }
 
   const ultimaMetrica = metricas.length ? metricas[metricas.length - 1].fecha : null
-  const integraciones = real
-    ? [
+  const integraciones = [
         { id: 'supabase', nombre: 'Supabase', desc: autorizado === false ? 'Tu correo no está en la lista blanca' : 'Base de datos, login y tiempo real', estado: autorizado === false ? 'warn' : 'ok' },
         { id: 'n8n', nombre: 'n8n', desc: WEBHOOK ? 'Webhook del panel: responder y enviar guía' : 'Falta VITE_N8N_WEBHOOK', estado: WEBHOOK ? 'ok' : 'off' },
         { id: 'meta', nombre: 'Meta Ads', desc: ultimaMetrica ? `Métricas guardadas hasta el ${fechaCorta(ultimaMetrica)} · falta sincronización diaria en n8n` : 'Sin métricas guardadas', estado: ultimaMetrica ? 'warn' : 'off' },
@@ -67,8 +65,7 @@ export default function Configuracion() {
         { id: 'whatsapp', nombre: 'WhatsApp Business', desc: 'Lo maneja n8n (confirmaciones y guías)', estado: WEBHOOK ? 'ok' : 'off' },
         { id: 'dropi', nombre: 'Dropi', desc: 'Costo, stock y proveedor de los productos del Radar', estado: 'off' },
         { id: 'shopify', nombre: 'Shopify', desc: 'Los pedidos llegan por n8n · landing se copia como HTML', estado: 'ok' },
-      ]
-    : INTEGRACIONES
+  ]
 
   return (
     <>
@@ -102,7 +99,7 @@ export default function Configuracion() {
           </Card>
 
           <Card>
-            <CardHeader title="Integraciones" subtitle={real ? 'Estado real de las conexiones' : 'Conexiones que usa el backend (n8n + Supabase)'} icon={Plug} />
+            <CardHeader title="Integraciones" subtitle="Estado real de las conexiones" icon={Plug} />
             <div className="divide-y divide-line p-2">
               {integraciones.map((i) => {
                 const e = EST[i.estado]
@@ -158,27 +155,6 @@ export default function Configuracion() {
             </div>
           </Card>
 
-          {!real && (
-            <Card>
-              <CardHeader title="Modo demo" subtitle="Para revisar el prototipo" icon={FlaskConical} />
-              <div className="space-y-3 p-5">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <div className="text-sm">Mostrar estados vacíos</div>
-                    <div className="text-xs text-muted">Oculta todos los datos de ejemplo</div>
-                  </div>
-                  <Switch checked={vacio} onChange={setVacio} label="Mostrar estados vacíos" />
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <div className="text-sm">Simular carga lenta</div>
-                    <div className="text-xs text-muted">Skeletons de 2,5 s en cada pantalla</div>
-                  </div>
-                  <Switch checked={cargaLenta} onChange={setCargaLenta} label="Simular carga lenta" />
-                </div>
-              </div>
-            </Card>
-          )}
         </div>
       </div>
     </>

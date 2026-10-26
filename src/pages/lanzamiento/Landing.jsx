@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Copy, ChevronDown, Save, ShoppingBag, ShieldCheck, Check, X, Star, Truck, UploadCloud, ExternalLink, Smartphone } from 'lucide-react'
+import { Copy, ChevronDown, Save, ShieldCheck, Check, X, Truck, UploadCloud, Smartphone, Loader2 } from 'lucide-react'
 import { Badge, Button, Card, Field, Input, Textarea, cn, useToast } from '../../components/ui'
 import { Thumb } from '../../components/brand'
-import { LANDING_INICIAL } from '../../data/mock'
 import { useStore } from '../../store'
 import { landingBase } from '../../lib/lanzamiento'
 import { cop } from '../../lib/format'
+import { subirCreativo } from '../../lib/creativos'
 
 const lineas = (s) => s.split('\n').map((x) => x.trim()).filter(Boolean)
 const pares = (s) => lineas(s).map((x) => x.split('|').map((y) => y.trim()))
@@ -46,12 +46,12 @@ export default function Landing({ l }) {
   const toast = useToast()
   const { actualizarLanzamiento } = useStore()
   const p = l.producto
-  const [d, setD] = useState(() => (l.real ? { ...landingBase(p), ...(l.landing || {}) } : { ...LANDING_INICIAL, titulo: p.nombre }))
+  const [d, setD] = useState(() => ({ ...landingBase(p), ...(l.landing || {}) }))
   const [abierta, setAbierta] = useState('galeria')
   const [guardando, setGuardando] = useState(false)
-  const [publicando, setPublicando] = useState(false)
-  const [publicada, setPublicada] = useState(false)
-  const [imgs, setImgs] = useState({})
+  const [subiendo, setSubiendo] = useState(null)
+  // Imágenes por bloque: se suben a Storage y la URL queda guardada en el borrador
+  const imgs = d.imagenes || {}
   const set = (k) => (e) => setD((s) => ({ ...s, [k]: e.target.value }))
 
   return (
@@ -76,7 +76,7 @@ export default function Landing({ l }) {
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold">Editar secciones</h2>
-            {publicada ? <Badge tone="ok" dot>Publicada</Badge> : <Badge tone="warn" dot>Borrador</Badge>}
+            {l.landing ? <Badge tone="ok" dot>Guardada</Badge> : <Badge tone="warn" dot>Sin guardar</Badge>}
           </div>
           <div className="flex gap-2">
             <Button
@@ -84,59 +84,29 @@ export default function Landing({ l }) {
               loading={guardando}
               onClick={async () => {
                 setGuardando(true)
-                if (l.real) {
-                  const r = await actualizarLanzamiento(l.id, { landing: d })
-                  setGuardando(false)
-                  return toast(r.error ? `No se guardó: ${r.error}` : 'Borrador guardado', r.error ? 'warn' : 'ok')
-                }
-                setTimeout(() => {
-                  setGuardando(false)
-                  toast('Borrador guardado')
-                }, 700)
+                const r = await actualizarLanzamiento(l.id, { landing: d })
+                setGuardando(false)
+                toast(r.error ? `No se guardó: ${r.error}` : 'Borrador guardado', r.error ? 'warn' : 'ok')
               }}
             >
               Guardar borrador
             </Button>
-            {l.real ? (
-              <Button
-                variant="primary"
-                icon={Copy}
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(htmlShopify(d))
-                    toast('HTML copiado: pégalo en la descripción del producto en Shopify')
-                  } catch {
-                    toast('El navegador no dejó copiar al portapapeles', 'warn')
-                  }
-                }}
-              >
-                Copiar HTML para Shopify
-              </Button>
-            ) : (
             <Button
               variant="primary"
-              icon={ShoppingBag}
-              loading={publicando}
-              onClick={() => {
-                setPublicando(true)
-                setTimeout(() => {
-                  setPublicando(false)
-                  setPublicada(true)
-                  toast('Publicada en Shopify')
-                }, 1500)
+              icon={Copy}
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(htmlShopify(d))
+                  toast('HTML copiado: pégalo en la descripción del producto en Shopify')
+                } catch {
+                  toast('El navegador no dejó copiar al portapapeles', 'warn')
+                }
               }}
             >
-              Publicar en Shopify
+              Copiar HTML para Shopify
             </Button>
-            )}
           </div>
         </div>
-
-        {publicada && (
-          <a href="#" onClick={(e) => e.preventDefault()} className="mb-4 flex items-center gap-2 rounded-xl border border-ok/25 bg-ok/[0.06] px-4 py-3 text-sm text-ok">
-            <Check size={16} /> ingeniostore.co/products/{p.corto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '-')} <ExternalLink size={14} className="ml-auto" />
-          </a>
-        )}
 
         <div className="flex flex-col gap-2">
           {SECCIONES.map((s, i) => {
@@ -164,14 +134,28 @@ export default function Landing({ l }) {
                     {s.imagen && (
                       <Field label="Imagen del bloque">
                         <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-line-strong p-3 transition hover:border-brand/50">
-                          {imgs[s.id] ? (
-                            <img src={imgs[s.id]} alt="" className="size-12 rounded-lg object-cover" />
+                          {imgs[s.id] || p.imagen ? (
+                            <img src={imgs[s.id] || p.imagen} alt="" referrerPolicy="no-referrer" className="size-12 rounded-lg object-cover" />
                           ) : (
-                            <Thumb hue={p.hue} emoji={p.emoji} className="size-12" rounded="rounded-lg" />
+                            <Thumb hue={p.hue} className="size-12" rounded="rounded-lg" />
                           )}
-                          <span className="flex-1 text-xs text-muted">{imgs[s.id] ? 'Cambiar imagen' : 'Usando creativo "Hero" · clic para cambiar'}</span>
-                          <UploadCloud size={16} className="text-faint" />
-                          <input type="file" accept="image/*" hidden onChange={(e) => e.target.files[0] && setImgs((x) => ({ ...x, [s.id]: URL.createObjectURL(e.target.files[0]) }))} />
+                          <span className="flex-1 text-xs text-muted">{imgs[s.id] ? 'Cambiar imagen' : 'Usando la imagen del producto · clic para subir otra'}</span>
+                          {subiendo === s.id ? <Loader2 size={16} className="animate-spin text-brand" /> : <UploadCloud size={16} className="text-faint" />}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            hidden
+                            onChange={async (e) => {
+                              const file = e.target.files[0]
+                              if (!file) return
+                              setSubiendo(s.id)
+                              const r = await subirCreativo(l.id, `landing-${s.id}`, file)
+                              setSubiendo(null)
+                              if (r.error) return toast(`No se subió: ${r.error}`, 'warn')
+                              setD((x) => ({ ...x, imagenes: { ...(x.imagenes || {}), [s.id]: r.url } }))
+                              toast('Imagen subida · recuerda guardar el borrador')
+                            }}
+                          />
                         </label>
                       </Field>
                     )}
@@ -208,19 +192,15 @@ function Preview({ d, p, imgs }) {
 
       <div className="p-4">
         <ImgOr id="galeria" className="aspect-square w-full" />
-        <div className="mt-2 grid grid-cols-4 gap-1.5">
-          {[0, 1, 2, 3].map((i) => (
-            <Thumb key={i} hue={p.hue + i * 15} emoji={i === 0 ? p.emoji : undefined} className={cn('aspect-square w-full', i === 0 && 'ring-2 ring-brand')} rounded="rounded-lg" />
-          ))}
-        </div>
-
-        {/* Calificación inventada solo en el prototipo; con datos reales no se muestra */}
-        {!p.radar && p.emoji && (
-          <div className="mt-3 flex items-center gap-1 text-[11px] text-amber-500">
-            {[0, 1, 2, 3, 4].map((i) => <Star key={i} size={12} fill="currentColor" />)}
-            <span className="ml-1 text-gray-500">4,8 · 1.135 vendidos</span>
+        {/* Miniaturas: solo las imágenes que de verdad tiene la landing */}
+        {Object.values(imgs).length > 1 && (
+          <div className="mt-2 grid grid-cols-4 gap-1.5">
+            {Object.values(imgs).map((src, i) => (
+              <img key={src} src={src} alt="" className={cn('aspect-square w-full rounded-lg object-cover', i === 0 && 'ring-2 ring-brand')} />
+            ))}
           </div>
         )}
+
         <h1 className="mt-1 text-[17px] leading-snug font-bold">{d.titulo}</h1>
         <p className="mt-1 leading-snug text-gray-600">{d.subtitulo}</p>
 

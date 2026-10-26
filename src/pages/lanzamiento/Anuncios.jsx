@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Download, PencilLine, Clapperboard, Send, Check, Volume2, FileText } from 'lucide-react'
+import { Download, PencilLine, Check, Volume2, FileText } from 'lucide-react'
 import { Button, Card, Field, Input, Textarea, cn, useToast } from '../../components/ui'
 import { useStore } from '../../store'
-import { ANUNCIOS } from '../../data/mock'
 import { anunciosBase } from '../../lib/lanzamiento'
 import { cop } from '../../lib/format'
 
@@ -20,23 +19,18 @@ function descargar(nombre, contenido) {
 export default function Anuncios({ l }) {
   const toast = useToast()
   const { actualizarLanzamiento } = useStore()
-  const [enviando, setEnviando] = useState(false)
-  const [enviado, setEnviado] = useState(false)
   const p = l.producto
   const principal = p.precios.find((c) => c.principal) || p.precios[0]
-  const anuncios = (l.real ? anunciosBase(p) : ANUNCIOS).map((a) => ({ ...a, ...(l.anuncios?.[a.id] || {}) }))
+  const anuncios = anunciosBase(p).map((a) => ({ ...a, ...(l.anuncios?.[a.id] || {}) }))
 
-  const guardar = async (id, valores) => {
-    if (!l.real) return {}
-    return actualizarLanzamiento(l.id, { anuncios: { ...(l.anuncios || {}), [id]: valores } })
-  }
+  const guardar = (id, valores) =>
+    actualizarLanzamiento(l.id, { anuncios: { ...(l.anuncios || {}), [id]: valores } })
 
   return (
     <>
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted">3 ángulos · gancho, subtítulos y cierre con precio{l.real ? ' · los textos se guardan en el lanzamiento' : ''}</p>
-        {l.real ? (
-          <Button
+        <p className="text-sm text-muted">3 ángulos · gancho, subtítulos y cierre con precio · los textos se guardan en el lanzamiento</p>
+        <Button
             variant="primary"
             icon={FileText}
             onClick={() => {
@@ -46,41 +40,23 @@ export default function Anuncios({ l }) {
           >
             Descargar todos los copys
           </Button>
-        ) : (
-          <Button
-            variant={enviado ? 'success' : 'primary'}
-            icon={enviado ? Check : Send}
-            loading={enviando}
-            onClick={() => {
-              setEnviando(true)
-              setTimeout(() => {
-                setEnviando(false)
-                setEnviado(true)
-                toast('3 videos y copys enviados a Drive · /Ingenio Store/' + l.id)
-              }, 1400)
-            }}
-          >
-            {enviado ? 'Enviado a Drive' : 'Enviar todo a Drive'}
-          </Button>
-        )}
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 xl:gap-6">
         {anuncios.map((a, i) => (
-          <AnuncioCard key={a.id} a={a} real={l.real} hue={p.hue + i * 40} emoji={p.emoji} imagen={p.imagen} precio={principal} lid={l.id} onGuardar={(v) => guardar(a.id, v)} />
+          <AnuncioCard key={a.id} a={a} hue={p.hue + i * 40} emoji={p.emoji} imagen={p.imagen} precio={principal} lid={l.id} onGuardar={(v) => guardar(a.id, v)} />
         ))}
       </div>
     </>
   )
 }
 
-function AnuncioCard({ a, real, hue, emoji, imagen, precio, lid, onGuardar }) {
+function AnuncioCard({ a, hue, emoji, imagen, precio, lid, onGuardar }) {
   const toast = useToast()
   const [editando, setEditando] = useState(false)
   const [gancho, setGancho] = useState(a.gancho)
   const [texto, setTexto] = useState(a.texto)
   const [titulo, setTitulo] = useState(a.titulo)
   const [guardando, setGuardando] = useState(false)
-  const [reeditando, setReeditando] = useState(false)
   const [sub, setSub] = useState(0)
 
   useEffect(() => {
@@ -107,13 +83,6 @@ function AnuncioCard({ a, real, hue, emoji, imagen, precio, lid, onGuardar }) {
           className="relative mx-auto aspect-[9/16] w-full max-w-[260px] overflow-hidden rounded-2xl ring-1 ring-white/10"
           style={{ background: `radial-gradient(100% 70% at 50% 40%, hsl(${hue} 60% 30%), #05070B 85%)` }}
         >
-          {reeditando && (
-            <div className="absolute inset-0 z-10 grid place-items-center bg-black/70 text-xs text-muted backdrop-blur-sm">
-              <div className="flex flex-col items-center gap-2">
-                <Clapperboard size={20} className="animate-pulse text-brand" /> Reeditando en n8n…
-              </div>
-            </div>
-          )}
           <div className="absolute inset-x-3 top-4 z-[1]">
             <div className="rounded-lg bg-brand px-3 py-2 text-center text-[13px] leading-tight font-bold text-white shadow-lg">{gancho}</div>
           </div>
@@ -184,36 +153,20 @@ function AnuncioCard({ a, real, hue, emoji, imagen, precio, lid, onGuardar }) {
           </Field>
         </div>
 
-        <div className={cn('mt-auto grid gap-2 pt-4', real ? 'grid-cols-2' : 'grid-cols-3')}>
+        <div className="mt-auto grid grid-cols-2 gap-2 pt-4">
           <Button
             size="sm"
             icon={Download}
             onClick={() => {
-              if (real) descargar(`${lid}-${a.id}.txt`, textoPlano({ ...a, gancho, texto, titulo }))
-              toast(real ? `Copy de ${a.id} descargado` : `${a.id}.mp4 descargado`)
+              descargar(`${lid}-${a.id}.txt`, textoPlano({ ...a, gancho, texto, titulo }))
+              toast(`Copy de ${a.id} descargado`)
             }}
           >
-            {real ? 'Descargar copy' : 'Descargar'}
+            Descargar copy
           </Button>
           <Button size="sm" variant={editando ? 'primary' : 'secondary'} icon={editando ? Check : PencilLine} loading={guardando} onClick={alternarEdicion}>
             {editando ? 'Guardar' : 'Editar textos'}
           </Button>
-          {!real && (
-            <Button
-              size="sm"
-              icon={Clapperboard}
-              loading={reeditando}
-              onClick={() => {
-                setReeditando(true)
-                setTimeout(() => {
-                  setReeditando(false)
-                  toast(`${a.id} reeditado`)
-                }, 2000)
-              }}
-            >
-              Reeditar
-            </Button>
-          )}
         </div>
       </div>
     </Card>

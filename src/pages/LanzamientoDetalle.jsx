@@ -1,15 +1,12 @@
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Trash2, ArrowLeft, BarChart2, Wand2, Images, Megaphone, LayoutTemplate, Target, SearchX, ExternalLink, ArrowRight } from 'lucide-react'
-import { Button, Card, EmptyState, Skeleton, Tabs, useFakeLoading, useToast } from '../components/ui'
+import { Button, Card, EmptyState, Skeleton, Tabs, useToast } from '../components/ui'
 import { ProductThumb } from '../components/brand'
 import { Stepper, VeredictoBadge } from '../components/launch'
 import { useStore } from '../store'
-import { ETAPAS } from '../data/mock'
+import { ETAPAS } from '../data/constantes'
 import { cop, miles } from '../lib/format'
 import Analisis from './lanzamiento/Analisis'
-import AnalisisReal from './lanzamiento/AnalisisReal'
-import CreativosReal from './lanzamiento/CreativosReal'
-import CampanaReal from './lanzamiento/CampanaReal'
 import Prompts from './lanzamiento/Prompts'
 import Creativos from './lanzamiento/Creativos'
 import Anuncios from './lanzamiento/Anuncios'
@@ -28,11 +25,11 @@ const TAB_DE_ETAPA = ['analisis', 'prompts', 'creativos', 'anuncios', 'landing',
 
 export default function LanzamientoDetalle() {
   const { id } = useParams()
-  const { lanzamientos, actualizarLanzamiento, eliminarLanzamiento, cargaLenta, cargandoDatos } = useStore()
+  const { lanzamientos, actualizarLanzamiento, eliminarLanzamiento, cargandoDatos } = useStore()
   const [params, setParams] = useSearchParams()
   const nav = useNavigate()
   const toast = useToast()
-  const loading = useFakeLoading(cargaLenta ? 2500 : 600, id) || cargandoDatos
+  const loading = cargandoDatos
   const l = lanzamientos.find((x) => x.id === id)
 
   if (!l && cargandoDatos) {
@@ -109,18 +106,18 @@ export default function LanzamientoDetalle() {
                 {p.costo != null && <span>Costo {cop(p.costo)}</span>}
                 {p.v7 != null && <span>{miles(p.v7)} ventas/7d</span>}
                 {p.stock != null && <span>Stock {miles(p.stock)}</span>}
-                {p.competencia != null && l.real && <span>{p.competencia} anunciantes en Meta</span>}
-                {p.categoria && l.real && <span>{p.categoria}</span>}
+                {p.competencia != null && <span>{p.competencia} anunciantes en Meta</span>}
+                {p.categoria && <span>{p.categoria}</span>}
                 {p.proveedor && (
                   <span className="inline-flex items-center gap-1">
                     {p.proveedor} <ExternalLink size={11} />
                   </span>
                 )}
-                {l.responsable && l.real && <span>Creado por {l.responsable} · {l.creado}</span>}
+                {l.responsable && <span>Creado por {l.responsable} · {l.creado}</span>}
               </div>
             </div>
             <div className="flex gap-2 self-start md:self-center">
-              {l.real && <Button variant="ghost" size="icon" icon={Trash2} onClick={eliminar} aria-label="Eliminar lanzamiento" />}
+              {<Button variant="ghost" size="icon" icon={Trash2} onClick={eliminar} aria-label="Eliminar lanzamiento" />}
               {l.etapa < 6 && l.veredicto !== 'DESCARTAR' && (
                 <Button variant="primary" onClick={avanzar}>
                   Completar {ETAPAS[l.etapa].toLowerCase()} <ArrowRight size={16} />
@@ -143,12 +140,12 @@ export default function LanzamientoDetalle() {
         </div>
       ) : (
         <div key={tab} className="animate-fade-in">
-          {tab === 'analisis' && (l.real ? <AnalisisReal l={l} /> : <Analisis l={l} />)}
+          {tab === 'analisis' && <Analisis l={l} />}
           {tab === 'prompts' && <Prompts l={l} />}
-          {tab === 'creativos' && (l.real ? <CreativosReal l={l} onIrPrompts={() => setTab('prompts')} /> : <Creativos l={l} />)}
+          {tab === 'creativos' && <Creativos l={l} onIrPrompts={() => setTab('prompts')} />}
           {tab === 'anuncios' && <Anuncios l={l} />}
           {tab === 'landing' && <Landing l={l} />}
-          {tab === 'campana' && (l.real ? <CampanaReal l={l} /> : <Campana l={l} />)}
+          {tab === 'campana' && <Campana l={l} />}
         </div>
       )}
     </>

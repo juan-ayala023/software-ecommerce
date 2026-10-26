@@ -1,9 +1,10 @@
 import { Routes, Route, Link } from 'react-router-dom'
-import { Compass } from 'lucide-react'
+import { Compass, ServerCrash } from 'lucide-react'
 import Layout from './components/Layout'
 import { Button, EmptyState, ToastProvider } from './components/ui'
 import { LogoMark } from './components/brand'
 import { StoreProvider, useStore } from './store'
+import { supabase } from './lib/supabase'
 import Login from './pages/Login'
 import Inicio from './pages/Inicio'
 import RadarPage from './pages/Radar'
@@ -15,6 +16,8 @@ import Resultados from './pages/Resultados'
 import Configuracion from './pages/Configuracion'
 
 export default function App() {
+  // Sin conexión a Supabase no se muestra nada: el panel no tiene datos de ejemplo
+  if (!supabase) return <FaltaConfig />
   return (
     <StoreProvider>
       <ToastProvider>
@@ -24,10 +27,22 @@ export default function App() {
   )
 }
 
-// Con Supabase configurado, el panel exige sesión
+function FaltaConfig() {
+  return (
+    <div className="grid min-h-full place-items-center px-4">
+      <EmptyState
+        icon={ServerCrash}
+        title="El panel no está conectado a Supabase"
+        text="Faltan las variables VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY. En Vercel: Settings → Environment Variables, agrégalas y vuelve a desplegar (Deployments → Redeploy)."
+      />
+    </div>
+  )
+}
+
+// El panel exige sesión
 function Acceso() {
-  const { modo, session, cargandoSesion } = useStore()
-  if (modo === 'real' && cargandoSesion) {
+  const { session, cargandoSesion } = useStore()
+  if (cargandoSesion) {
     return (
       <div className="grid h-full place-items-center">
         <div className="animate-pulse">
@@ -36,7 +51,7 @@ function Acceso() {
       </div>
     )
   }
-  if (modo === 'real' && !session) return <Login />
+  if (!session) return <Login />
   return <Rutas />
 }
 

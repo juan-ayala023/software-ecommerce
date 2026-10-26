@@ -1,199 +1,257 @@
-import { useRef } from 'react'
-import { Tag, AlertTriangle, CheckCircle2, XCircle, Filter, Swords, ChevronLeft, ChevronRight, ThumbsUp, ThumbsDown, Play, Clock, Calculator } from 'lucide-react'
-import { Badge, Button, Card, CardHeader, cn, useToast } from '../../components/ui'
+import { useEffect, useState } from 'react'
+import { Tag, Calculator, ThumbsUp, ThumbsDown, Save, Plus, X, Target, ShieldAlert, Gauge, Swords, Clock, ExternalLink, Link2 } from 'lucide-react'
+import { Badge, Button, Card, CardHeader, Field, Input, Textarea, cn, useToast } from '../../components/ui'
 import { Thumb } from '../../components/brand'
 import { useStore } from '../../store'
-import { ALERTAS_ANALISIS, COMPETENCIA, PARAMETROS, nivelCompetencia } from '../../data/mock'
+import { supabase } from '../../lib/supabase'
+import { PARAMETROS } from '../../data/constantes'
 import { cop, miles, pct } from '../../lib/format'
+import { hueDe } from '../../lib/lanzamiento'
 
-export function calcularMargen(p) {
-  const principal = p.precios.find((c) => c.principal)
-  const costo = p.costo * principal.qty
+const DESGLOSE = [
+  ['margen', 'Margen'],
+  ['logistica', 'Logística'],
+  ['efecto_wow', 'Efecto wow'],
+  ['saturacion', 'Poca saturación'],
+  ['senal_dinero', 'Señal de dinero'],
+]
+
+const num = (v) => Number(String(v).replace(/\D/g, '')) || 0
+
+export function margenDe(precios, costo) {
+  const principal = precios.find((c) => c.principal) || precios[0]
+  if (!principal || costo == null) return null
   const recaudo = Math.round(principal.precio * PARAMETROS.recaudo)
-  const margen = principal.precio - costo - PARAMETROS.flete - recaudo
-  const cpaMax = Math.round((margen * PARAMETROS.tasaEntrega) / 100) * 100
-  return { principal, costo, recaudo, margen, cpaMax }
+  const margen = principal.precio - costo * principal.qty - PARAMETROS.flete - recaudo
+  return { principal, recaudo, margen, cpaMax: Math.round((margen * PARAMETROS.tasaEntrega) / 100) * 100 }
 }
 
-export default function Analisis({ l }) {
+export default function AnalisisReal({ l }) {
   const { actualizarLanzamiento } = useStore()
   const toast = useToast()
   const p = l.producto
-  const { principal, costo, recaudo, margen, cpaMax } = calcularMargen(p)
-  const scroller = useRef(null)
+  const radar = p.radar
+  const [precios, setPrecios] = useState(p.precios.length ? p.precios : [{ qty: 1, precio: 0, antes: 0, principal: true }])
+  const [costo, setCosto] = useState(p.costo ?? '')
+  const [shopify, setShopify] = useState(l.nombreShopify)
+  const [notas, setNotas] = useState(l.notas)
+  const [guardando, setGuardando] = useState(false)
+  const [anuncios, setAnuncios] = useState(null)
 
-  const filtros = [
-    { f: 'Ventas totales', v: miles(p.total), req: '200 – 2.000', ok: p.total >= 200 && p.total <= 2000 },
-    { f: 'Ventas 7 días', v: miles(p.v7), req: '≥ 14', ok: p.v7 >= 14 },
-    { f: 'Stock', v: miles(p.stock), req: '≥ 60', ok: p.stock >= 60 },
-    { f: 'Productos similares', v: miles(p.similares), req: '≤ 2.000', ok: p.similares <= 2000 },
-    { f: 'Competencia en Meta', v: `${p.competencia} tiendas`, req: '≤ 20', ok: p.competencia <= 20, warn: nivelCompetencia(p.competencia) === 'yellow' },
-  ]
+  useEffect(() => {
+    if (!radar?.slug) return setAnuncios([])
+    supabase
+      .from('anuncios')
+      .select('ad_archive_id,page_name,titulo,imagen_url,link_url,dias_activo')
+      .eq('producto_slug', radar.slug)
+      .order('dias_activo', { ascending: false })
+      .limit(12)
+      .then(({ data }) => setAnuncios(data || []))
+  }, [radar?.slug])
+
+  const calc = margenDe(precios, costo === '' ? null : Number(costo))
+  const setCombo = (i, k, v) => setPrecios((s) => s.map((c, j) => (j === i ? { ...c, [k]: v } : k === 'principal' ? { ...c, principal: false } : c)))
+
+  const guardar = async () => {
+    setGuardando(true)
+    const r = await actualizarLanzamiento(l.id, {
+      precios: precios.map((c) => ({ ...c, antes: c.antes || Math.round((c.precio * 1.55) / 1000) * 1000 - 100 })),
+      costo: costo === '' ? null : Number(costo),
+      nombreShopify: shopify.trim() || null,
+      notas: notas.trim() || null,
+    })
+    setGuardando(false)
+    toast(r.error ? `No se guardó: ${r.error}` : 'Análisis guardado', r.error ? 'warn' : 'ok')
+  }
+
+  const decidir = async (veredicto) => {
+    const cambios = veredicto === 'TESTEAR' ? { veredicto, etapa: Math.max(l.etapa, 1) } : { veredicto }
+    const r = await actualizarLanzamiento(l.id, cambios)
+    if (r.error) return toast(`No se guardó: ${r.error}`, 'warn')
+    toast(veredicto === 'TESTEAR' ? 'Análisis aprobado · siguiente paso: prompts' : 'Lanzamiento descartado', veredicto === 'TESTEAR' ? 'ok' : 'info')
+  }
 
   return (
     <div className="grid gap-4 lg:grid-cols-3 lg:gap-6">
-      {/* Precio y combos */}
       <Card className="lg:col-span-2">
-        <CardHeader title="Precio y combos" subtitle="Precio sugerido para pago contra entrega" icon={Tag} />
-        <div className="grid gap-3 p-5 sm:grid-cols-3">
-          {p.precios.map((c) => (
-            <div
-              key={c.qty}
-              className={cn(
-                'relative rounded-xl border p-4',
-                c.principal ? 'border-brand/50 bg-brand/[0.07] shadow-glow' : 'border-line bg-panel'
-              )}
-            >
-              {c.principal && <Badge tone="brand" className="absolute -top-2.5 left-4 bg-card">Principal</Badge>}
-              <div className="text-sm text-muted">{c.qty}x unidad{c.qty > 1 ? 'es' : ''}</div>
-              <div className="mt-1 text-2xl font-semibold tracking-tight">{cop(c.precio)}</div>
-              <div className="mt-0.5 text-xs text-faint line-through">{cop(c.antes)}</div>
-              <div className="mt-2 text-xs text-muted">{cop(Math.round(c.precio / c.qty))} c/u</div>
-            </div>
-          ))}
-        </div>
-        <div className="grid gap-4 border-t border-line p-5 md:grid-cols-2">
-          <div>
-            <div className="mb-3 flex items-center gap-2 text-xs font-medium text-muted">
-              <Calculator size={14} /> Margen por entrega (combo {principal.qty}x)
-            </div>
-            <dl className="space-y-1.5 text-sm">
-              <Row k="Precio de venta" v={cop(principal.precio)} />
-              <Row k={`Costo producto (${principal.qty} × ${cop(p.costo)})`} v={`−${cop(costo)}`} />
-              <Row k="Flete promedio" v={`−${cop(PARAMETROS.flete)}`} />
-              <Row k={`Comisión recaudo (${pct(PARAMETROS.recaudo)})`} v={`−${cop(recaudo)}`} />
-              <div className="flex justify-between border-t border-line pt-2 font-semibold">
-                <dt>Margen por entrega</dt>
-                <dd className="text-ok">{cop(margen)}</dd>
-              </div>
-            </dl>
-          </div>
-          <div className="flex flex-col justify-between rounded-xl border border-line bg-panel p-4">
-            <div>
-              <div className="text-xs text-muted">CPA máximo</div>
-              <div className="mt-1 text-3xl font-semibold tracking-tight text-accent">{cop(cpaMax)}</div>
-              <p className="mt-2 text-xs leading-relaxed text-faint">
-                Margen × {pct(PARAMETROS.tasaEntrega)} de entrega esperada. Si el costo por compra en Meta pasa este valor, la campaña pierde plata.
-              </p>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Alertas */}
-      <Card>
-        <CardHeader title="Alertas" subtitle={`${ALERTAS_ANALISIS.length} puntos a revisar`} icon={AlertTriangle} />
-        <ul className="space-y-2 p-5">
-          {ALERTAS_ANALISIS.map((a, i) => {
-            const I = a.tipo === 'ok' ? CheckCircle2 : a.tipo === 'warn' ? AlertTriangle : XCircle
-            const c = a.tipo === 'ok' ? 'text-ok' : a.tipo === 'warn' ? 'text-accent' : 'text-bad'
-            return (
-              <li key={i} className="flex gap-3 rounded-xl border border-line bg-panel p-3 text-sm leading-snug">
-                <I size={17} className={cn('mt-px shrink-0', c)} />
-                {a.texto}
-              </li>
-            )
-          })}
-        </ul>
-      </Card>
-
-      {/* Filtros DropKiller */}
-      <Card className="lg:col-span-3">
-        <CardHeader title="Filtros DropKiller" subtitle={`${filtros.filter((f) => f.ok).length} de ${filtros.length} cumplen`} icon={Filter} />
-        <div className="overflow-x-auto p-5 pt-3">
-          <table className="w-full min-w-[480px] text-sm">
-            <thead>
-              <tr className="text-left text-xs text-faint">
-                <th className="py-2 font-medium">Filtro</th>
-                <th className="py-2 font-medium">Valor</th>
-                <th className="py-2 font-medium">Requisito</th>
-                <th className="py-2 text-right font-medium">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {filtros.map((f) => (
-                <tr key={f.f}>
-                  <td className="py-2.5">{f.f}</td>
-                  <td className="py-2.5 font-medium">{f.v}</td>
-                  <td className="py-2.5 text-muted">{f.req}</td>
-                  <td className="py-2.5 text-right">
-                    {!f.ok ? <Badge tone="bad" icon={XCircle}>No cumple</Badge> : f.warn ? <Badge tone="warn" icon={AlertTriangle}>Cumple justo</Badge> : <Badge tone="ok" icon={CheckCircle2}>Cumple</Badge>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      {/* Competencia */}
-      <Card className="overflow-hidden lg:col-span-3">
         <CardHeader
-          title="Competencia"
-          subtitle="Anuncios activos de otras tiendas en la biblioteca de Meta"
-          icon={Swords}
+          title="Precio, combos y costo"
+          subtitle="Edita y guarda: estos valores alimentan Campaña y Resultados"
+          icon={Tag}
           action={
-            <div className="hidden gap-1 sm:flex">
-              <Button size="icon" className="size-8" aria-label="Anterior" onClick={() => scroller.current.scrollBy({ left: -320, behavior: 'smooth' })}>
-                <ChevronLeft size={16} />
-              </Button>
-              <Button size="icon" className="size-8" aria-label="Siguiente" onClick={() => scroller.current.scrollBy({ left: 320, behavior: 'smooth' })}>
-                <ChevronRight size={16} />
-              </Button>
-            </div>
+            <Button variant="primary" size="sm" icon={Save} loading={guardando} onClick={guardar}>
+              Guardar
+            </Button>
           }
         />
-        <div ref={scroller} className="no-scrollbar flex snap-x gap-3 overflow-x-auto p-5">
-          {COMPETENCIA.map((c) => (
-            <div key={c.tienda} className="w-52 shrink-0 snap-start overflow-hidden rounded-xl border border-line bg-panel">
-              <Thumb hue={c.hue} video={c.formato === 'Video'} className="aspect-[4/5] w-full" rounded="rounded-none">
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 pt-10 text-xs leading-snug font-medium">{c.gancho}</div>
-                <Badge tone="gray" className="absolute top-2 left-2 bg-black/50 backdrop-blur">
-                  {c.formato === 'Video' && <Play size={10} />} {c.formato}
-                </Badge>
-              </Thumb>
-              <div className="flex items-center justify-between p-3">
-                <span className="truncate text-sm font-medium">{c.tienda}</span>
-                <span className={cn('flex shrink-0 items-center gap-1 text-xs', c.dias >= 30 ? 'text-accent' : 'text-muted')}>
-                  <Clock size={12} /> {c.dias} d
-                </span>
-              </div>
+        <div className="space-y-2 p-5">
+          {precios.map((c, i) => (
+            <div key={i} className={cn('grid grid-cols-[70px_1fr_auto_auto] items-end gap-2 rounded-xl border p-3', c.principal ? 'border-brand/50 bg-brand/[0.06]' : 'border-line bg-panel')}>
+              <Field label="Unidades">
+                <Input inputMode="numeric" value={c.qty} onChange={(e) => setCombo(i, 'qty', num(e.target.value) || 1)} />
+              </Field>
+              <Field label="Precio de venta">
+                <Input inputMode="numeric" value={c.precio ? miles(c.precio) : ''} onChange={(e) => setCombo(i, 'precio', num(e.target.value))} placeholder="$" />
+              </Field>
+              <Button size="sm" variant={c.principal ? 'primary' : 'secondary'} onClick={() => setCombo(i, 'principal', true)} className="mb-0.5">
+                {c.principal ? 'Principal' : 'Hacer principal'}
+              </Button>
+              <Button variant="ghost" size="icon" className="mb-0.5 size-8" aria-label="Quitar combo" disabled={precios.length === 1} onClick={() => setPrecios((s) => s.filter((_, j) => j !== i))}>
+                <X size={15} />
+              </Button>
             </div>
           ))}
+          <Button size="sm" icon={Plus} onClick={() => setPrecios((s) => [...s, { qty: s.length + 1, precio: 0, antes: 0 }])}>
+            Agregar combo
+          </Button>
+        </div>
+        <div className="grid gap-4 border-t border-line p-5 md:grid-cols-2">
+          <div className="space-y-3">
+            <Field label="Costo unitario del proveedor (COP)" hint={radar?.costo_dropi != null ? 'Viene de Dropi' : radar ? `Estimado por IA: ${cop(radar.costo_est ?? 0)}` : undefined}>
+              <Input inputMode="numeric" value={costo === '' ? '' : miles(costo)} onChange={(e) => setCosto(e.target.value === '' ? '' : num(e.target.value))} placeholder="$" />
+            </Field>
+            <Field label="Nombre en Shopify" hint="Texto con el que aparece en los pedidos; sirve para cruzar ventas en Resultados">
+              <div className="relative">
+                <Link2 size={14} className="absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
+                <Input value={shopify} onChange={(e) => setShopify(e.target.value)} placeholder="Ej. Pelador Eléctrico" className="pl-8" />
+              </div>
+            </Field>
+          </div>
+          <div className="flex flex-col justify-between rounded-xl border border-line bg-panel p-4">
+            <div className="flex items-center gap-2 text-xs font-medium text-muted">
+              <Calculator size={14} /> Margen por entrega {calc ? `(combo ${calc.principal.qty}x)` : ''}
+            </div>
+            {calc ? (
+              <>
+                <dl className="mt-3 space-y-1 text-sm">
+                  <Fila k="Venta" v={cop(calc.principal.precio)} />
+                  <Fila k={`Costo (${calc.principal.qty} × ${cop(Number(costo))})`} v={`−${cop(Number(costo) * calc.principal.qty)}`} />
+                  <Fila k="Flete" v={`−${cop(PARAMETROS.flete)}`} />
+                  <Fila k={`Recaudo ${pct(PARAMETROS.recaudo)}`} v={`−${cop(calc.recaudo)}`} />
+                </dl>
+                <div className="mt-3 flex items-end justify-between border-t border-line pt-3">
+                  <div>
+                    <div className="text-xs text-muted">Margen</div>
+                    <div className={cn('text-xl font-semibold', calc.margen > 0 ? 'text-ok' : 'text-bad')}>{cop(calc.margen)}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-muted">CPA máximo</div>
+                    <div className="text-xl font-semibold text-accent">{cop(Math.max(0, calc.cpaMax))}</div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="mt-3 text-sm text-muted">Agrega el costo del proveedor para calcular margen y CPA máximo.</p>
+            )}
+          </div>
+        </div>
+        <div className="border-t border-line p-5">
+          <Field label="Notas del análisis">
+            <Textarea rows={3} value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Proveedor, tiempos de entrega, dudas, decisiones…" />
+          </Field>
         </div>
       </Card>
 
+      <Card>
+        <CardHeader title="Señales del Radar" subtitle={radar ? 'Análisis de IA sobre la biblioteca de Meta' : 'Este lanzamiento no viene del Radar'} icon={Gauge} />
+        {radar ? (
+          <div className="space-y-4 p-5">
+            <div className="flex items-center gap-4">
+              <span className={cn('text-4xl font-bold', radar.score >= 60 ? 'text-ok' : radar.score >= 45 ? 'text-accent' : 'text-bad')}>{radar.score}</span>
+              <div className="text-xs text-muted">
+                score / 100
+                <div className="mt-1">
+                  <Badge tone={radar.veredicto_ia === 'descartar' ? 'bad' : radar.veredicto_ia === 'testear' ? 'ok' : 'warn'}>IA: {radar.veredicto_ia?.toUpperCase()}</Badge>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {DESGLOSE.map(([k, label]) =>
+                radar.desglose?.[k] == null ? null : (
+                  <div key={k}>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted">{label}</span>
+                      <span className="tabular-nums">{radar.desglose[k]}</span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                      <div className={cn('h-full rounded-full', radar.desglose[k] >= 70 ? 'bg-ok' : radar.desglose[k] >= 45 ? 'bg-accent' : 'bg-bad')} style={{ width: `${radar.desglose[k]}%` }} />
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+            {radar.angulo && <Nota icon={Target} titulo="Ángulo" texto={radar.angulo} />}
+            {radar.riesgos && <Nota icon={ShieldAlert} titulo="Riesgos" texto={radar.riesgos} tono="text-accent" />}
+          </div>
+        ) : (
+          <p className="p-5 text-sm text-muted">Se creó a mano. Usa las notas para registrar el análisis.</p>
+        )}
+      </Card>
+
+      {radar && (
+        <Card className="overflow-hidden lg:col-span-3">
+          <CardHeader title="Competencia" subtitle={`${radar.num_anunciantes ?? 0} anunciantes · anuncio más antiguo con ${miles(radar.max_dias_activo ?? 0)} días`} icon={Swords} />
+          <div className="no-scrollbar flex snap-x gap-3 overflow-x-auto p-5">
+            {anuncios === null
+              ? [0, 1, 2, 3].map((i) => <div key={i} className="aspect-[4/5] w-48 shrink-0 animate-pulse rounded-xl bg-white/[0.05]" />)
+              : anuncios.length === 0
+                ? <p className="text-sm text-muted">No hay anuncios guardados para este producto.</p>
+                : anuncios.map((a) => (
+                    <a key={a.ad_archive_id} href={a.link_url || `https://www.facebook.com/ads/library/?id=${a.ad_archive_id}`} target="_blank" rel="noreferrer" className="w-48 shrink-0 snap-start overflow-hidden rounded-xl border border-line bg-panel">
+                      <Imagen src={a.imagen_url} seed={a.ad_archive_id} />
+                      <div className="p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-medium">{a.page_name}</span>
+                          <ExternalLink size={12} className="shrink-0 text-faint" />
+                        </div>
+                        <div className={cn('mt-0.5 flex items-center gap-1 text-xs', a.dias_activo >= 30 ? 'text-accent' : 'text-muted')}>
+                          <Clock size={11} /> {a.dias_activo ?? 0} días activo
+                        </div>
+                        {a.titulo && <p className="mt-1 line-clamp-2 text-xs text-muted">{a.titulo}</p>}
+                      </div>
+                    </a>
+                  ))}
+          </div>
+        </Card>
+      )}
+
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end lg:col-span-3">
-        <Button
-          variant="danger"
-          icon={ThumbsDown}
-          onClick={() => {
-            actualizarLanzamiento(l.id, { veredicto: 'DESCARTAR' })
-            toast('Producto descartado', 'warn')
-          }}
-        >
+        <Button variant="danger" icon={ThumbsDown} onClick={() => decidir('DESCARTAR')} disabled={l.veredicto === 'DESCARTAR'}>
           Descartar
         </Button>
-        <Button
-          variant="primary"
-          icon={ThumbsUp}
-          onClick={() => {
-            actualizarLanzamiento(l.id, { veredicto: 'TESTEAR', etapa: Math.max(l.etapa, 1) })
-            toast('Análisis aprobado · siguiente paso: prompts')
-          }}
-        >
-          Aprobar
+        <Button onClick={() => decidir('VIGILAR')} disabled={l.veredicto === 'VIGILAR'}>
+          Vigilar
+        </Button>
+        <Button variant="primary" icon={ThumbsUp} onClick={() => decidir('TESTEAR')}>
+          Aprobar para testear
         </Button>
       </div>
     </div>
   )
 }
 
-function Row({ k, v }) {
+function Imagen({ src, seed }) {
+  const [rota, setRota] = useState(false)
+  if (!src || rota) return <Thumb hue={hueDe(seed)} className="aspect-[4/5] w-full" rounded="rounded-none" />
+  return <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setRota(true)} className="aspect-[4/5] w-full object-cover" />
+}
+
+function Fila({ k, v }) {
   return (
-    <div className="flex justify-between gap-4">
+    <div className="flex justify-between gap-3">
       <dt className="text-muted">{k}</dt>
       <dd className="tabular-nums">{v}</dd>
+    </div>
+  )
+}
+
+function Nota({ icon: Icon, titulo, texto, tono }) {
+  return (
+    <div>
+      <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold">
+        <Icon size={13} className={tono || 'text-muted'} /> {titulo}
+      </div>
+      <p className="text-sm leading-relaxed text-[#D1D5DB]">{texto}</p>
     </div>
   )
 }

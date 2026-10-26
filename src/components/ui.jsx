@@ -279,17 +279,6 @@ export function ToastProvider({ children }) {
   )
 }
 
-/* ---------- Carga simulada ---------- */
-export function useFakeLoading(ms = 650, key) {
-  const [loading, setLoading] = useState(true)
-  useEffect(() => {
-    setLoading(true)
-    const t = setTimeout(() => setLoading(false), ms)
-    return () => clearTimeout(t)
-  }, [ms, key])
-  return loading
-}
-
 /* ---------- Encabezado de página ---------- */
 export function PageHeader({ title, subtitle, actions }) {
   return (

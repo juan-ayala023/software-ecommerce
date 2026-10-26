@@ -2,22 +2,20 @@ import { useEffect, useRef, useState } from 'react'
 import { Copy, Check, UploadCloud, CheckCircle2, ImageIcon, Film, Clock, Trash2, Loader2 } from 'lucide-react'
 import { Badge, Button, Card, Progress, cn, useToast } from '../../components/ui'
 import { Thumb } from '../../components/brand'
-import { PROMPTS_CLIPS, PROMPTS_IMAGENES } from '../../data/mock'
 import { promptsBase } from '../../lib/lanzamiento'
 import { borrarCreativo, listarCreativos, subirCreativo } from '../../lib/creativos'
 
 export default function Prompts({ l }) {
   const toast = useToast()
-  const base = l.real ? promptsBase(l.producto) : { imagenes: PROMPTS_IMAGENES, clips: PROMPTS_CLIPS }
+  const base = promptsBase(l.producto)
   const [imgs, setImgs] = useState(base.imagenes)
   const [clips, setClips] = useState(base.clips)
-  const [cargando, setCargando] = useState(!!l.real)
+  const [cargando, setCargando] = useState(true)
   const total = imgs.length + clips.length
   const recibidos = [...imgs, ...clips].filter((x) => x.estado === 'recibido').length
 
   // Marca como recibidos los archivos que ya están en el bucket
   useEffect(() => {
-    if (!l.real) return
     listarCreativos(l.id).then(({ archivos, error }) => {
       if (error) toast(`No se pudieron leer los archivos: ${error}`, 'warn')
       const marcar = (s) => s.map((x) => {
@@ -28,12 +26,11 @@ export default function Prompts({ l }) {
       setClips(marcar)
       setCargando(false)
     })
-  }, [l.id, l.real, toast])
+  }, [l.id, toast])
 
   const actualizar = (set) => (id, cambios) => set((s) => s.map((x) => (x.id === id ? { ...x, ...cambios } : x)))
 
   const subir = (set) => async (it, file) => {
-    if (!l.real) return actualizar(set)(it.id, { estado: 'recibido', archivo: file.name, url: URL.createObjectURL(file), esVideo: file.type.startsWith('video') })
     const r = await subirCreativo(l.id, it.id, file, it.archivo)
     if (r.error) return toast(`No se subió: ${r.error}`, 'warn')
     actualizar(set)(it.id, { estado: 'recibido', archivo: r.nombre, url: r.url, esVideo: r.esVideo })
@@ -41,7 +38,7 @@ export default function Prompts({ l }) {
   }
 
   const quitar = (set) => async (it) => {
-    if (l.real && it.archivo) {
+    if (it.archivo) {
       const r = await borrarCreativo(l.id, it.archivo)
       if (r.error) return toast(`No se borró: ${r.error}`, 'warn')
     }
@@ -59,7 +56,7 @@ export default function Prompts({ l }) {
           <Progress value={(recibidos / total) * 100} className="mt-2" tone={recibidos === total ? 'ok' : 'brand'} />
         </div>
         <p className="text-xs text-faint sm:max-w-xs">
-          Copia cada prompt en Google Flow, genera y arrastra el resultado a su tarjeta.{l.real ? ' Se guarda en Supabase y aparece en Creativos.' : ''}
+          Copia cada prompt en Google Flow, genera y arrastra el resultado a su tarjeta. Se guarda en Supabase y aparece en Creativos.
         </p>
       </Card>
 

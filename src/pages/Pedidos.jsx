@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Truck, MessageCircle, Phone, Search, Package, Download, SearchX, MapPin, AlertCircle, StickyNote } from 'lucide-react'
-import { Badge, Button, Card, EmptyState, Field, Input, Modal, PageHeader, Select, Skeleton, cn, useFakeLoading, useToast } from '../components/ui'
+import { Badge, Button, Card, EmptyState, Field, Input, Modal, PageHeader, Select, Skeleton, cn, useToast } from '../components/ui'
 import { useStore } from '../store'
-import { ESTADOS, TONO_ESTADO, TRANSPORTADORAS } from '../data/mock'
+import { ESTADOS, TONO_ESTADO, TRANSPORTADORAS } from '../data/constantes'
 import { fechaCorta, fechaLocal, haceDias } from '../lib/mapeo'
 import { cop } from '../lib/format'
 
@@ -26,12 +26,11 @@ function exportarCSV(lista) {
 }
 
 export default function Pedidos() {
-  const { pedidos, chats, actualizarPedido, cargaLenta, vacio, cargandoDatos } = useStore()
+  const { pedidos, chats, actualizarPedido, cargandoDatos } = useStore()
   const [params, setParams] = useSearchParams()
   const nav = useNavigate()
   const toast = useToast()
-  const fake = useFakeLoading(cargaLenta ? 2500 : 600)
-  const loading = fake || cargandoDatos
+  const loading = cargandoDatos
   const [estado, setEstado] = useState('Todos')
   const [rango, setRango] = useState('todo')
   const q = params.get('q') || ''
@@ -126,7 +125,7 @@ export default function Pedidos() {
             ))}
           </div>
         ) : lista.length === 0 ? (
-          vacio || pedidos.length === 0 ? (
+          pedidos.length === 0 ? (
             <EmptyState icon={Package} title="Aún no hay pedidos" text="Cuando un cliente compre desde la landing, el pedido aparece aquí y el bot le escribe por WhatsApp." />
           ) : (
             <EmptyState

@@ -1,5 +1,5 @@
 import { Check, CircleDashed, Eye, FlaskConical, XCircle } from 'lucide-react'
-import { ETAPAS } from '../data/mock'
+import { ETAPAS } from '../data/constantes'
 import { Badge, cn } from './ui'
 
 export function VeredictoBadge({ v, className }) {
