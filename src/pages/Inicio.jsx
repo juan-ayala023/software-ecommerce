@@ -10,8 +10,7 @@ import { MiniEtapas, VeredictoBadge } from '../components/launch'
 import { useStore } from '../store'
 import { ACTIVIDAD, ETAPAS, KPIS } from '../data/mock'
 import { cop } from '../lib/format'
-import { fechaLocal, haceCuanto, haceDias } from '../lib/mapeo'
-import DemoAviso from '../components/DemoAviso'
+import { calcularReal } from '../lib/actividad'
 
 const ICONO_ACT = {
   pedido: { i: CheckCircle2, c: 'text-ok bg-ok/10' },
@@ -23,32 +22,6 @@ const ICONO_ACT = {
   campana: { i: TrendingDown, c: 'text-ok bg-ok/10' },
   revisar: { i: ImageOff, c: 'text-accent bg-accent/10' },
   mensaje: { i: MessageCircle, c: 'text-info bg-info/10' },
-}
-
-// KPIs y actividad a partir de pedidos y chats reales
-function calcularReal(pedidos, chats) {
-  const hoy = fechaLocal()
-  const semana = haceDias(6)
-  const deHoy = pedidos.filter((p) => p.fecha === hoy)
-  const kpis = {
-    pedidosHoy: deHoy.length,
-    confirmados: deHoy.filter((p) => ['Confirmado', 'Despachado', 'Entregado'].includes(p.estado)).length,
-    porDespachar: pedidos.filter((p) => p.estado === 'Confirmado' || p.estado === 'Cambio de dirección').length,
-    ventasSemana: pedidos.filter((p) => p.fecha >= semana && !['Cancelado', 'Devuelto'].includes(p.estado)).reduce((a, p) => a + p.total, 0),
-  }
-  const ev = []
-  for (const p of pedidos) {
-    ev.push({ t: p.creado, tipo: 'pedido', texto: `Nuevo pedido ${p.numero}`, meta: `${p.cliente} · ${cop(p.total)}` })
-    if (p.despachado && p.guia) ev.push({ t: p.despachado, tipo: 'guia', texto: `Guía enviada a ${p.cliente.split(' ')[0]}`, meta: `${p.transportadora} ${p.guia}` })
-  }
-  for (const c of chats) {
-    for (const m of c.mensajes) if (m.de === 'cliente' && m.iso) ev.push({ t: m.iso, tipo: 'mensaje', texto: `${c.nombre.split(' ')[0]} escribió`, meta: m.texto })
-  }
-  const actividad = ev
-    .sort((a, b) => new Date(b.t) - new Date(a.t))
-    .slice(0, 8)
-    .map((e) => ({ ...e, hace: haceCuanto(e.t) }))
-  return { kpis, actividad }
 }
 
 export default function Inicio() {
@@ -105,7 +78,6 @@ export default function Inicio() {
             icon={Rocket}
             action={
               <div className="flex items-center gap-2">
-                <DemoAviso />
                 <Link to="/lanzamientos" className="flex items-center gap-1 text-xs whitespace-nowrap text-muted hover:text-fg">
                   Ver todos <ArrowUpRight size={14} />
                 </Link>
@@ -176,7 +148,7 @@ export default function Inicio() {
             ) : (
               <ol className="relative">
                 <span className="absolute top-4 bottom-4 left-4 w-px bg-line" />
-                {actividad.map((a, i) => {
+                {actividad.slice(0, 8).map((a, i) => {
                   const { i: I, c } = ICONO_ACT[a.tipo]
                   return (
                     <li key={i} className="relative flex gap-3 py-2.5">

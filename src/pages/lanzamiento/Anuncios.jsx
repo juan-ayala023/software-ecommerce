@@ -1,49 +1,85 @@
 import { useEffect, useState } from 'react'
-import { Download, PencilLine, Clapperboard, Send, Check, Volume2 } from 'lucide-react'
+import { Download, PencilLine, Clapperboard, Send, Check, Volume2, FileText } from 'lucide-react'
 import { Button, Card, Field, Input, Textarea, cn, useToast } from '../../components/ui'
+import { useStore } from '../../store'
 import { ANUNCIOS } from '../../data/mock'
+import { anunciosBase } from '../../lib/lanzamiento'
 import { cop } from '../../lib/format'
+
+const textoPlano = (a) => `${a.id} · ${a.angulo}\n\nGANCHO:\n${a.gancho}\n\nTEXTO PRINCIPAL:\n${a.texto}\n\nTÍTULO:\n${a.titulo}\n`
+
+function descargar(nombre, contenido) {
+  const url = URL.createObjectURL(new Blob([contenido], { type: 'text/plain;charset=utf-8' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nombre
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 export default function Anuncios({ l }) {
   const toast = useToast()
+  const { actualizarLanzamiento } = useStore()
   const [enviando, setEnviando] = useState(false)
   const [enviado, setEnviado] = useState(false)
-  const principal = l.producto.precios.find((c) => c.principal)
+  const p = l.producto
+  const principal = p.precios.find((c) => c.principal) || p.precios[0]
+  const anuncios = (l.real ? anunciosBase(p) : ANUNCIOS).map((a) => ({ ...a, ...(l.anuncios?.[a.id] || {}) }))
+
+  const guardar = async (id, valores) => {
+    if (!l.real) return {}
+    return actualizarLanzamiento(l.id, { anuncios: { ...(l.anuncios || {}), [id]: valores } })
+  }
 
   return (
     <>
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted">3 anuncios editados · gancho, subtítulos y cierre con precio</p>
-        <Button
-          variant={enviado ? 'success' : 'primary'}
-          icon={enviado ? Check : Send}
-          loading={enviando}
-          onClick={() => {
-            setEnviando(true)
-            setTimeout(() => {
-              setEnviando(false)
-              setEnviado(true)
-              toast('3 videos y copys enviados a Drive · /Ingenio Store/' + l.id)
-            }, 1400)
-          }}
-        >
-          {enviado ? 'Enviado a Drive' : 'Enviar todo a Drive'}
-        </Button>
+        <p className="text-sm text-muted">3 ángulos · gancho, subtítulos y cierre con precio{l.real ? ' · los textos se guardan en el lanzamiento' : ''}</p>
+        {l.real ? (
+          <Button
+            variant="primary"
+            icon={FileText}
+            onClick={() => {
+              descargar(`${l.id}-copys.txt`, anuncios.map(textoPlano).join('\n────────────\n\n'))
+              toast('Copys descargados')
+            }}
+          >
+            Descargar todos los copys
+          </Button>
+        ) : (
+          <Button
+            variant={enviado ? 'success' : 'primary'}
+            icon={enviado ? Check : Send}
+            loading={enviando}
+            onClick={() => {
+              setEnviando(true)
+              setTimeout(() => {
+                setEnviando(false)
+                setEnviado(true)
+                toast('3 videos y copys enviados a Drive · /Ingenio Store/' + l.id)
+              }, 1400)
+            }}
+          >
+            {enviado ? 'Enviado a Drive' : 'Enviar todo a Drive'}
+          </Button>
+        )}
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 xl:gap-6">
-        {ANUNCIOS.map((a, i) => (
-          <AnuncioCard key={a.id} a={a} hue={l.producto.hue + i * 40} emoji={l.producto.emoji} precio={principal} />
+        {anuncios.map((a, i) => (
+          <AnuncioCard key={a.id} a={a} real={l.real} hue={p.hue + i * 40} emoji={p.emoji} imagen={p.imagen} precio={principal} lid={l.id} onGuardar={(v) => guardar(a.id, v)} />
         ))}
       </div>
     </>
   )
 }
 
-function AnuncioCard({ a, hue, emoji, precio }) {
+function AnuncioCard({ a, real, hue, emoji, imagen, precio, lid, onGuardar }) {
   const toast = useToast()
   const [editando, setEditando] = useState(false)
+  const [gancho, setGancho] = useState(a.gancho)
   const [texto, setTexto] = useState(a.texto)
   const [titulo, setTitulo] = useState(a.titulo)
+  const [guardando, setGuardando] = useState(false)
   const [reeditando, setReeditando] = useState(false)
   const [sub, setSub] = useState(0)
 
@@ -52,6 +88,16 @@ function AnuncioCard({ a, hue, emoji, precio }) {
     return () => clearInterval(t)
   }, [a.subtitulos.length])
   const cierre = sub === a.subtitulos.length
+
+  const alternarEdicion = async () => {
+    if (!editando) return setEditando(true)
+    setGuardando(true)
+    const r = await onGuardar({ gancho, texto, titulo })
+    setGuardando(false)
+    if (r?.error) return toast(`No se guardó: ${r.error}`, 'warn')
+    setEditando(false)
+    toast(`Textos de ${a.id} guardados`)
+  }
 
   return (
     <Card className="flex flex-col overflow-hidden">
@@ -68,13 +114,23 @@ function AnuncioCard({ a, hue, emoji, precio }) {
               </div>
             </div>
           )}
-          <div className="absolute inset-x-3 top-4">
-            <div className="rounded-lg bg-brand px-3 py-2 text-center text-[13px] leading-tight font-bold text-white shadow-lg">{a.gancho}</div>
+          <div className="absolute inset-x-3 top-4 z-[1]">
+            <div className="rounded-lg bg-brand px-3 py-2 text-center text-[13px] leading-tight font-bold text-white shadow-lg">{gancho}</div>
           </div>
           <div className="absolute inset-0 grid place-items-center">
-            <span className="text-7xl drop-shadow-[0_10px_20px_rgba(0,0,0,0.6)] transition-transform duration-700" style={{ transform: `scale(${1 + sub * 0.06})` }}>
-              {emoji}
-            </span>
+            {imagen ? (
+              <img
+                src={imagen}
+                alt=""
+                referrerPolicy="no-referrer"
+                className="w-[78%] rounded-xl object-cover shadow-2xl transition-transform duration-700"
+                style={{ transform: `scale(${1 + sub * 0.04})` }}
+              />
+            ) : (
+              <span className="text-7xl drop-shadow-[0_10px_20px_rgba(0,0,0,0.6)] transition-transform duration-700" style={{ transform: `scale(${1 + sub * 0.06})` }}>
+                {emoji}
+              </span>
+            )}
           </div>
           <div className="absolute inset-x-4 bottom-16 text-center">
             {!cierre && (
@@ -83,16 +139,18 @@ function AnuncioCard({ a, hue, emoji, precio }) {
               </span>
             )}
           </div>
-          <div
-            className={cn(
-              'absolute inset-x-3 bottom-3 rounded-xl bg-white p-2.5 text-center text-bg transition-all duration-500',
-              cierre ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
-            )}
-          >
-            <div className="text-[11px] font-medium">{precio.qty}x por solo</div>
-            <div className="text-xl leading-none font-extrabold text-brand-600">{cop(precio.precio)}</div>
-            <div className="mt-1 rounded-md bg-bg py-1 text-[11px] font-bold tracking-wide text-accent">PAGAS AL RECIBIR</div>
-          </div>
+          {precio && (
+            <div
+              className={cn(
+                'absolute inset-x-3 bottom-3 rounded-xl bg-white p-2.5 text-center text-bg transition-all duration-500',
+                cierre ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
+              )}
+            >
+              <div className="text-[11px] font-medium">{precio.qty}x por solo</div>
+              <div className="text-xl leading-none font-extrabold text-brand-600">{cop(precio.precio)}</div>
+              <div className="mt-1 rounded-md bg-bg py-1 text-[11px] font-bold tracking-wide text-accent">PAGAS AL RECIBIR</div>
+            </div>
+          )}
           <div className="absolute top-16 right-2 flex flex-col items-center gap-1 text-white/60">
             <Volume2 size={14} />
           </div>
@@ -109,6 +167,11 @@ function AnuncioCard({ a, hue, emoji, precio }) {
         </div>
 
         <div className="mt-4 space-y-3">
+          {editando && (
+            <Field label="Gancho (texto naranja del video)">
+              <Input value={gancho} onChange={(e) => setGancho(e.target.value)} />
+            </Field>
+          )}
           <Field label="Texto principal">
             {editando ? (
               <Textarea rows={7} value={texto} onChange={(e) => setTexto(e.target.value)} />
@@ -121,35 +184,36 @@ function AnuncioCard({ a, hue, emoji, precio }) {
           </Field>
         </div>
 
-        <div className="mt-auto grid grid-cols-3 gap-2 pt-4">
-          <Button size="sm" icon={Download} onClick={() => toast(`${a.id}.mp4 descargado`)}>
-            Descargar
-          </Button>
+        <div className={cn('mt-auto grid gap-2 pt-4', real ? 'grid-cols-2' : 'grid-cols-3')}>
           <Button
             size="sm"
-            variant={editando ? 'primary' : 'secondary'}
-            icon={editando ? Check : PencilLine}
+            icon={Download}
             onClick={() => {
-              if (editando) toast(`Textos de ${a.id} guardados`)
-              setEditando(!editando)
+              if (real) descargar(`${lid}-${a.id}.txt`, textoPlano({ ...a, gancho, texto, titulo }))
+              toast(real ? `Copy de ${a.id} descargado` : `${a.id}.mp4 descargado`)
             }}
           >
+            {real ? 'Descargar copy' : 'Descargar'}
+          </Button>
+          <Button size="sm" variant={editando ? 'primary' : 'secondary'} icon={editando ? Check : PencilLine} loading={guardando} onClick={alternarEdicion}>
             {editando ? 'Guardar' : 'Editar textos'}
           </Button>
-          <Button
-            size="sm"
-            icon={Clapperboard}
-            loading={reeditando}
-            onClick={() => {
-              setReeditando(true)
-              setTimeout(() => {
-                setReeditando(false)
-                toast(`${a.id} reeditado`)
-              }, 2000)
-            }}
-          >
-            Reeditar
-          </Button>
+          {!real && (
+            <Button
+              size="sm"
+              icon={Clapperboard}
+              loading={reeditando}
+              onClick={() => {
+                setReeditando(true)
+                setTimeout(() => {
+                  setReeditando(false)
+                  toast(`${a.id} reeditado`)
+                }, 2000)
+              }}
+            >
+              Reeditar
+            </Button>
+          )}
         </div>
       </div>
     </Card>

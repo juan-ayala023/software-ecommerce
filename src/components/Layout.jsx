@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Home, Radar, Rocket, Package, MessageCircle, BarChart3, Settings, Search, Plus, Bell, Menu, X, Link2, ChevronRight, Sparkles, LogOut, AlertTriangle,
+  Home, Radar, Rocket, Package, MessageCircle, BarChart3, Settings, Search, Plus, Bell, BellRing, Menu, X, Link2, ChevronRight, Sparkles, LogOut, AlertTriangle, Truck, Info,
 } from 'lucide-react'
 import { Logo, ProductThumb } from './brand'
-import { Button, Input, Modal, cn, useToast } from './ui'
+import { Badge, Button, Input, Modal, cn, useToast } from './ui'
 import { useStore } from '../store'
 import { PRODUCTOS } from '../data/mock'
 import { cop, miles } from '../lib/format'
+import { titulo } from '../lib/mapeo'
+import { calcularReal } from '../lib/actividad'
+import { avisosActivos, avisosDisponibles, pedirPermisoAvisos } from '../lib/avisos'
 
 export default function Layout() {
   const [open, setOpen] = useState(false)
@@ -53,7 +56,7 @@ export default function Layout() {
 }
 
 function Sidebar() {
-  const { pedidos, chats } = useStore()
+  const { pedidos, chats, modo } = useStore()
   const pendientes = pedidos.filter((p) => p.estado === 'Pendiente' || p.estado === 'Cambio de dirección').length
   const noLeidos = chats.reduce((a, c) => a + c.noLeidos, 0)
   const items = [
@@ -76,7 +79,7 @@ function Sidebar() {
         ))}
       </nav>
       <div className="mt-auto">
-        <Card2 />
+        {modo === 'demo' && <Creditos />}
         <NavItem to="/configuracion" label="Configuración" icon={Settings} />
       </div>
     </div>
@@ -111,7 +114,7 @@ function NavItem({ to, label, icon: Icon, end, badge, hot }) {
   )
 }
 
-function Card2() {
+function Creditos() {
   return (
     <div className="mx-1 mb-3 rounded-xl border border-line bg-gradient-to-b from-brand/10 to-transparent p-3.5">
       <div className="flex items-center gap-2 text-xs font-medium">
@@ -155,13 +158,88 @@ function Topbar({ onMenu, onNuevo }) {
         <Button variant="primary" icon={Plus} onClick={onNuevo} className="px-2.5 sm:px-3.5">
           <span className="hidden sm:inline">Nuevo lanzamiento</span>
         </Button>
-        <Button variant="ghost" size="icon" aria-label="Notificaciones" className="relative">
-          <Bell size={18} />
-          <span className="absolute top-2 right-2 size-2 rounded-full bg-brand ring-2 ring-bg" />
-        </Button>
+        <Campana />
         <MenuUsuario />
       </div>
     </header>
+  )
+}
+
+const ICONO = { pedido: Package, guia: Truck, mensaje: MessageCircle }
+const VISTO = 'ingenio.avisos.visto'
+
+function Campana() {
+  const { modo, pedidos, chats } = useStore()
+  const [open, setOpen] = useState(false)
+  const [activos, setActivos] = useState(avisosActivos())
+  const [visto, setVisto] = useState(() => {
+    try {
+      return localStorage.getItem(VISTO) || ''
+    } catch {
+      return ''
+    }
+  })
+  const actividad = useMemo(() => (modo === 'real' ? calcularReal(pedidos, chats).actividad : []), [modo, pedidos, chats])
+  const nuevos = actividad.filter((a) => a.t > visto).length
+
+  const abrir = () => {
+    setOpen(!open)
+    if (!open && actividad[0]) {
+      setVisto(actividad[0].t)
+      try {
+        localStorage.setItem(VISTO, actividad[0].t)
+      } catch {
+        /* sin almacenamiento local */
+      }
+    }
+  }
+
+  return (
+    <div className="relative">
+      <Button variant="ghost" size="icon" aria-label="Notificaciones" className="relative" onClick={abrir}>
+        <Bell size={18} />
+        {(modo === 'demo' || nuevos > 0) && <span className="absolute top-2 right-2 size-2 rounded-full bg-brand ring-2 ring-bg" />}
+      </Button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute top-11 right-0 z-50 w-80 animate-fade-in overflow-hidden rounded-xl border border-line-strong bg-card shadow-2xl">
+            <div className="flex items-center justify-between border-b border-line px-4 py-3">
+              <span className="text-sm font-semibold">Actividad</span>
+              {avisosDisponibles() && !activos && (
+                <button
+                  onClick={async () => setActivos(await pedirPermisoAvisos())}
+                  className="flex cursor-pointer items-center gap-1 text-xs text-brand hover:underline"
+                >
+                  <BellRing size={13} /> Activar avisos
+                </button>
+              )}
+              {activos && <Badge tone="ok">Avisos activos</Badge>}
+            </div>
+            <div className="max-h-96 overflow-y-auto">
+              {actividad.length === 0 ? (
+                <p className="px-4 py-8 text-center text-sm text-muted">{modo === 'demo' ? 'En modo demo la actividad está en Inicio.' : 'Sin actividad todavía.'}</p>
+              ) : (
+                actividad.map((a, i) => {
+                  const I = ICONO[a.tipo] || Info
+                  return (
+                    <Link key={i} to={a.link} onClick={() => setOpen(false)} className="flex gap-3 border-b border-line/60 px-4 py-3 transition last:border-0 hover:bg-white/[0.03]">
+                      <I size={16} className="mt-0.5 shrink-0 text-muted" />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm leading-snug">{a.texto}</div>
+                        <div className="truncate text-xs text-faint">
+                          {a.meta} · {a.hace}
+                        </div>
+                      </div>
+                    </Link>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -200,7 +278,7 @@ function MenuUsuario() {
 }
 
 function AvisoDatos() {
-  const { errorDatos, autorizado, session } = useStore()
+  const { errorDatos, autorizado, session, faltanTablas } = useStore()
   if (autorizado === false) {
     return (
       <div className="flex items-start gap-2 border-b border-accent/25 bg-accent/10 px-4 py-2.5 text-sm text-accent sm:px-6 lg:px-8">
@@ -212,32 +290,56 @@ function AvisoDatos() {
       </div>
     )
   }
-  if (!errorDatos) return null
-  const permiso = /permission denied|42501/i.test(errorDatos)
-  return (
-    <div className="flex items-start gap-2 border-b border-bad/25 bg-bad/10 px-4 py-2.5 text-sm text-bad sm:px-6 lg:px-8">
-      <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-      <span>
-        {permiso
-          ? 'Supabase rechazó la lectura: falta ejecutar supabase/migrations/001_acceso_panel.sql o tu correo no está en panel_usuarios.'
-          : `Error al cargar datos: ${errorDatos}`}
-      </span>
-    </div>
-  )
+  if (errorDatos) {
+    const permiso = /permission denied|42501/i.test(errorDatos)
+    return (
+      <div className="flex items-start gap-2 border-b border-bad/25 bg-bad/10 px-4 py-2.5 text-sm text-bad sm:px-6 lg:px-8">
+        <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+        <span>
+          {permiso
+            ? 'Supabase rechazó la lectura: falta ejecutar supabase/migrations/001_acceso_panel.sql o tu correo no está en panel_usuarios.'
+            : `Error al cargar datos: ${errorDatos}`}
+        </span>
+      </div>
+    )
+  }
+  if (faltanTablas) {
+    return (
+      <div className="flex items-start gap-2 border-b border-info/25 bg-info/10 px-4 py-2.5 text-sm text-info sm:px-6 lg:px-8">
+        <Info size={16} className="mt-0.5 shrink-0" />
+        <span>
+          Para activar Lanzamientos, Resultados y Configuración ejecuta <span className="font-mono">supabase/migrations/002_lanzamientos_config_metricas.sql</span> en el SQL Editor de Supabase.
+        </span>
+      </div>
+    )
+  }
+  return null
 }
 
 function NuevoLanzamiento({ open, onClose }) {
-  const { crearLanzamiento } = useStore()
+  const { modo, productos, crearLanzamiento, lanzamientos } = useStore()
   const nav = useNavigate()
   const toast = useToast()
-  const [link, setLink] = useState('')
-  const [cargando, setCargando] = useState(false)
+  const [q, setQ] = useState('')
+  const [creando, setCreando] = useState(null)
+  const real = modo === 'real'
 
-  const lanzar = (id) => {
-    const lid = crearLanzamiento(id)
+  const sugeridos = real
+    ? productos
+        .filter((p) => p.estado !== 'descartado' && (!q || p.nombre.toLowerCase().includes(q.toLowerCase())))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 6)
+    : PRODUCTOS.slice(0, 4)
+
+  const lanzar = async (p) => {
+    setCreando(p.id)
+    const r = await crearLanzamiento(real ? p : p.id)
+    setCreando(null)
+    if (r.error) return toast(`No se creó: ${r.error}`, 'warn')
     onClose()
-    toast(`Lanzamiento ${lid} creado`)
-    nav(`/lanzamientos/${lid}`)
+    setQ('')
+    toast(r.existente ? `Ese producto ya está en ${r.id}` : `Lanzamiento ${r.id} creado`, r.existente ? 'info' : 'ok')
+    nav(`/lanzamientos/${r.id}`)
   }
 
   return (
@@ -245,46 +347,36 @@ function NuevoLanzamiento({ open, onClose }) {
       open={open}
       onClose={onClose}
       title="Nuevo lanzamiento"
-      subtitle="Pega el enlace del producto en Dropi o elige uno sugerido por el Radar."
-      footer={
-        <>
-          <Button onClick={onClose}>Cancelar</Button>
-          <Button
-            variant="primary"
-            loading={cargando}
-            disabled={!link.trim()}
-            onClick={() => {
-              setCargando(true)
-              setTimeout(() => {
-                setCargando(false)
-                setLink('')
-                lanzar('sellador')
-              }, 900)
-            }}
-          >
-            Analizar producto
-          </Button>
-        </>
-      }
+      subtitle={real ? 'Elige un producto del Radar para empezar su análisis.' : 'Pega el enlace del producto en Dropi o elige uno sugerido por el Radar.'}
+      footer={<Button onClick={onClose}>Cancelar</Button>}
     >
       <div className="relative">
-        <Link2 size={16} className="absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
-        <Input autoFocus value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://app.dropi.co/productos/…" className="pl-9" />
+        {real ? <Search size={16} className="absolute top-1/2 left-3 -translate-y-1/2 text-faint" /> : <Link2 size={16} className="absolute top-1/2 left-3 -translate-y-1/2 text-faint" />}
+        <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={real ? 'Buscar producto del Radar' : 'https://app.dropi.co/productos/…'} className="pl-9" />
       </div>
-      <div className="mt-5 mb-2 text-xs font-medium text-muted">Sugeridos por el Radar</div>
+      <div className="mt-5 mb-2 text-xs font-medium text-muted">{real ? 'Mejores candidatos del Radar' : 'Sugeridos por el Radar'}</div>
       <div className="flex flex-col gap-1.5">
-        {PRODUCTOS.slice(0, 4).map((p) => (
-          <button key={p.id} onClick={() => lanzar(p.id)} className="group flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-panel p-2.5 text-left transition hover:border-line-strong hover:bg-hover">
-            <ProductThumb p={p} className="size-10" />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">{p.nombre}</div>
-              <div className="text-xs text-muted">
-                Costo {cop(p.costo)} · {miles(p.v7)} ventas/7d
+        {sugeridos.length === 0 && <p className="py-4 text-center text-sm text-muted">No hay productos que coincidan.</p>}
+        {sugeridos.map((p) => {
+          const ya = real && lanzamientos.some((l) => l.productoId === p.id)
+          return (
+            <button
+              key={p.id}
+              disabled={!!creando}
+              onClick={() => lanzar(p)}
+              className="group flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-panel p-2.5 text-left transition hover:border-line-strong hover:bg-hover disabled:opacity-60"
+            >
+              {real ? <ProductThumb p={{ imagen: p.ejemplos?.[0]?.imagen, hue: 24 }} className="size-10" /> : <ProductThumb p={p} className="size-10" />}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{p.nombre}</div>
+                <div className="text-xs text-muted">
+                  {real ? `Score ${p.score} · ${titulo(p.categoria)}${p.precio_venta_est ? ` · venta ${cop(p.precio_venta_est)}` : ''}` : `Costo ${cop(p.costo)} · ${miles(p.v7)} ventas/7d`}
+                </div>
               </div>
-            </div>
-            <ChevronRight size={16} className="text-faint transition group-hover:translate-x-0.5 group-hover:text-brand" />
-          </button>
-        ))}
+              {ya ? <Badge tone="info">Ya lanzado</Badge> : <ChevronRight size={16} className="text-faint transition group-hover:translate-x-0.5 group-hover:text-brand" />}
+            </button>
+          )
+        })}
       </div>
     </Modal>
   )

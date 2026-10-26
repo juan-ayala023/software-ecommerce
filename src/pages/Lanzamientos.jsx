@@ -3,14 +3,13 @@ import { Link } from 'react-router-dom'
 import { Rocket, Radar, ChevronRight, User } from 'lucide-react'
 import { Button, Card, EmptyState, PageHeader, Segmented, Skeleton, useFakeLoading } from '../components/ui'
 import { ProductThumb } from '../components/brand'
-import DemoAviso from '../components/DemoAviso'
 import { MiniEtapas, VeredictoBadge } from '../components/launch'
 import { useStore } from '../store'
 import { ETAPAS } from '../data/mock'
 
 export default function Lanzamientos() {
-  const { lanzamientos, cargaLenta } = useStore()
-  const loading = useFakeLoading(cargaLenta ? 2500 : 550)
+  const { lanzamientos, cargaLenta, cargandoDatos, faltanTablas } = useStore()
+  const loading = useFakeLoading(cargaLenta ? 2500 : 550) || cargandoDatos
   const [f, setF] = useState('activos')
   const lista = lanzamientos.filter((l) =>
     f === 'activos' ? l.veredicto !== 'DESCARTAR' && l.etapa < 6 : f === 'ventas' ? l.etapa === 6 : f === 'descartados' ? l.veredicto === 'DESCARTAR' : true
@@ -18,7 +17,7 @@ export default function Lanzamientos() {
 
   return (
     <>
-      <PageHeader title="Lanzamientos" subtitle="Cada producto que pasa por el ciclo completo" actions={<DemoAviso />} />
+      <PageHeader title="Lanzamientos" subtitle="Cada producto que pasa por el ciclo completo" />
       <Segmented
         className="mb-5"
         value={f}
@@ -43,6 +42,12 @@ export default function Lanzamientos() {
               </div>
             ))}
           </div>
+        ) : faltanTablas ? (
+          <EmptyState
+            icon={Rocket}
+            title="Falta crear la tabla de lanzamientos"
+            text="Ejecuta supabase/migrations/002_lanzamientos_config_metricas.sql en el SQL Editor de Supabase y recarga."
+          />
         ) : lista.length === 0 ? (
           <EmptyState
             icon={Rocket}

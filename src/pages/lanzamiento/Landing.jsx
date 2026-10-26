@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { ChevronDown, Save, ShoppingBag, ShieldCheck, Check, X, Star, Truck, UploadCloud, ExternalLink, Smartphone } from 'lucide-react'
+import { Copy, ChevronDown, Save, ShoppingBag, ShieldCheck, Check, X, Star, Truck, UploadCloud, ExternalLink, Smartphone } from 'lucide-react'
 import { Badge, Button, Card, Field, Input, Textarea, cn, useToast } from '../../components/ui'
 import { Thumb } from '../../components/brand'
 import { LANDING_INICIAL } from '../../data/mock'
+import { useStore } from '../../store'
+import { landingBase } from '../../lib/lanzamiento'
 import { cop } from '../../lib/format'
 
 const lineas = (s) => s.split('\n').map((x) => x.trim()).filter(Boolean)
@@ -19,10 +21,32 @@ const SECCIONES = [
   { id: 'faq', titulo: 'Preguntas frecuentes', campos: [['faq', 'Pregunta | Respuesta', 'textarea']] },
 ]
 
+// HTML simple para pegar en la descripción del producto en Shopify
+function htmlShopify(d) {
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const ul = (s) => `<ul>\n${lineas(s).map((x) => `  <li>${esc(x)}</li>`).join('\n')}\n</ul>`
+  return [
+    `<p><strong>${esc(d.subtitulo)}</strong></p>`,
+    `<h3>Beneficios</h3>`,
+    ul(d.beneficios),
+    `<h3>¿Para quién es?</h3>`,
+    ul(d.paraQuien),
+    `<h3>Comparativa</h3>`,
+    `<table>\n  <tr><th></th><th>Nosotros</th><th>Otros</th></tr>\n${pares(d.comparativa).map(([f, a, b]) => `  <tr><td>${esc(f)}</td><td>${esc(a || '')}</td><td>${esc(b || '')}</td></tr>`).join('\n')}\n</table>`,
+    `<h3>¿Cómo pedir?</h3>`,
+    `<ol>\n${lineas(d.pasos).map((x) => `  <li>${esc(x)}</li>`).join('\n')}\n</ol>`,
+    `<h3>Garantía</h3>`,
+    `<p>${esc(d.garantia)}</p>`,
+    `<h3>Preguntas frecuentes</h3>`,
+    pares(d.faq).map(([q, a]) => `<p><strong>${esc(q)}</strong><br>${esc(a || '')}</p>`).join('\n'),
+  ].join('\n')
+}
+
 export default function Landing({ l }) {
   const toast = useToast()
+  const { actualizarLanzamiento } = useStore()
   const p = l.producto
-  const [d, setD] = useState({ ...LANDING_INICIAL, titulo: p.nombre })
+  const [d, setD] = useState(() => (l.real ? { ...landingBase(p), ...(l.landing || {}) } : { ...LANDING_INICIAL, titulo: p.nombre }))
   const [abierta, setAbierta] = useState('galeria')
   const [guardando, setGuardando] = useState(false)
   const [publicando, setPublicando] = useState(false)
@@ -58,8 +82,13 @@ export default function Landing({ l }) {
             <Button
               icon={Save}
               loading={guardando}
-              onClick={() => {
+              onClick={async () => {
                 setGuardando(true)
+                if (l.real) {
+                  const r = await actualizarLanzamiento(l.id, { landing: d })
+                  setGuardando(false)
+                  return toast(r.error ? `No se guardó: ${r.error}` : 'Borrador guardado', r.error ? 'warn' : 'ok')
+                }
                 setTimeout(() => {
                   setGuardando(false)
                   toast('Borrador guardado')
@@ -68,6 +97,22 @@ export default function Landing({ l }) {
             >
               Guardar borrador
             </Button>
+            {l.real ? (
+              <Button
+                variant="primary"
+                icon={Copy}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(htmlShopify(d))
+                    toast('HTML copiado: pégalo en la descripción del producto en Shopify')
+                  } catch {
+                    toast('El navegador no dejó copiar al portapapeles', 'warn')
+                  }
+                }}
+              >
+                Copiar HTML para Shopify
+              </Button>
+            ) : (
             <Button
               variant="primary"
               icon={ShoppingBag}
@@ -83,6 +128,7 @@ export default function Landing({ l }) {
             >
               Publicar en Shopify
             </Button>
+            )}
           </div>
         </div>
 
@@ -144,8 +190,14 @@ function Preview({ d, p, imgs }) {
   const principal = p.precios.find((c) => c.principal)
   const [combo, setCombo] = useState(principal.qty)
   const sel = p.precios.find((c) => c.qty === combo)
-  const ImgOr = ({ id, className }) =>
-    imgs[id] ? <img src={imgs[id]} alt="" className={cn('object-cover', className)} /> : <Thumb hue={p.hue} emoji={p.emoji} className={className} rounded="rounded-xl" />
+  const ImgOr = ({ id, className }) => {
+    const src = imgs[id] || p.imagen
+    return src ? (
+      <img src={src} alt="" referrerPolicy="no-referrer" className={cn('rounded-xl object-cover', className)} />
+    ) : (
+      <Thumb hue={p.hue} emoji={p.emoji} className={className} rounded="rounded-xl" />
+    )
+  }
 
   return (
     <div className="text-[13px]">
@@ -162,10 +214,13 @@ function Preview({ d, p, imgs }) {
           ))}
         </div>
 
-        <div className="mt-3 flex items-center gap-1 text-[11px] text-amber-500">
-          {[0, 1, 2, 3, 4].map((i) => <Star key={i} size={12} fill="currentColor" />)}
-          <span className="ml-1 text-gray-500">4,8 · 1.135 vendidos</span>
-        </div>
+        {/* Calificación inventada solo en el prototipo; con datos reales no se muestra */}
+        {!p.radar && p.emoji && (
+          <div className="mt-3 flex items-center gap-1 text-[11px] text-amber-500">
+            {[0, 1, 2, 3, 4].map((i) => <Star key={i} size={12} fill="currentColor" />)}
+            <span className="ml-1 text-gray-500">4,8 · 1.135 vendidos</span>
+          </div>
+        )}
         <h1 className="mt-1 text-[17px] leading-snug font-bold">{d.titulo}</h1>
         <p className="mt-1 leading-snug text-gray-600">{d.subtitulo}</p>
 

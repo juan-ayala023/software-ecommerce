@@ -33,9 +33,9 @@ function RadarDemo() {
       .sort((a, b) => (orden === 'costo' ? a.costo - b.costo : orden === 'competencia' ? a.competencia - b.competencia : b[orden] - a[orden]))
   }, [activos, q, orden, vacio])
 
-  const lanzar = (p) => {
+  const lanzar = async (p) => {
     const ya = lanzamientos.some((l) => l.productoId === p.id)
-    const id = crearLanzamiento(p.id)
+    const { id } = await crearLanzamiento(p.id)
     toast(ya ? `Abriendo ${id}` : `Lanzamiento ${id} creado`)
     nav(`/lanzamientos/${id}`)
   }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useStore } from '../store'
 import {
   Check, X, Search, RefreshCw, Store, Clock, SearchX, Package, ExternalLink, Rocket, Trash2, Undo2, Target, ShieldAlert, Megaphone, Calculator,
 } from 'lucide-react'
@@ -47,6 +48,8 @@ const hue = (slug) => [...slug].reduce((a, c) => a + c.charCodeAt(0), 0) % 360
 
 export default function RadarReal() {
   const toast = useToast()
+  const nav = useNavigate()
+  const { crearLanzamiento, lanzamientos } = useStore()
   const [params, setParams] = useSearchParams()
   const [filas, setFilas] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -215,7 +218,20 @@ export default function RadarReal() {
         </>
       )}
 
-      {abierto && <Detalle p={abierto} onClose={() => abrir(null)} onEstado={(e) => cambiarEstado(abierto, e)} />}
+      {abierto && (
+        <Detalle
+          p={abierto}
+          onClose={() => abrir(null)}
+          onEstado={(e) => cambiarEstado(abierto, e)}
+          lanzamiento={lanzamientos.find((l) => l.productoId === abierto.id)}
+          onLanzar={async () => {
+            const r = await crearLanzamiento(abierto)
+            if (r.error) return toast(`No se creó: ${r.error}`, 'warn')
+            toast(r.existente ? `Abriendo ${r.id}` : `Lanzamiento ${r.id} creado`)
+            nav(`/lanzamientos/${r.id}`)
+          }}
+        />
+      )}
     </>
   )
 }
@@ -282,8 +298,9 @@ function Dato({ label, value, tone }) {
   )
 }
 
-function Detalle({ p, onClose, onEstado }) {
+function Detalle({ p, onClose, onEstado, onLanzar, lanzamiento }) {
   const [anuncios, setAnuncios] = useState(null)
+  const [lanzando, setLanzando] = useState(false)
   useEffect(() => {
     const k = (e) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', k)
@@ -435,8 +452,18 @@ function Detalle({ p, onClose, onEstado }) {
               Descartar
             </Button>
           )}
-          <Button variant="primary" icon={Rocket} disabled className="flex-1" title="Los lanzamientos aún no tienen tabla en Supabase">
-            Lanzar · pronto
+          <Button
+            variant="primary"
+            icon={Rocket}
+            loading={lanzando}
+            className="flex-1"
+            onClick={async () => {
+              setLanzando(true)
+              await onLanzar()
+              setLanzando(false)
+            }}
+          >
+            {lanzamiento ? `Ver ${lanzamiento.id}` : 'Lanzar'}
           </Button>
         </footer>
       </aside>

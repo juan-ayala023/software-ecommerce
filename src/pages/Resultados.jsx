@@ -4,6 +4,7 @@ import { TrendingUp, Pause, Wrench, BarChart3, Table2, LineChart as LineIcon } f
 import { Badge, Card, CardHeader, EmptyState, PageHeader, Segmented, Select, Semaforo, Skeleton, cn, useFakeLoading } from '../components/ui'
 import { ProductThumb } from '../components/brand'
 import DemoAviso from '../components/DemoAviso'
+import ResultadosReal from './ResultadosReal'
 import { useStore } from '../store'
 import { RESULTADOS, producto } from '../data/mock'
 import { cop, dec, miles, pct } from '../lib/format'
@@ -24,6 +25,11 @@ const VEREDICTO = {
 const compacto = (n) => (Math.abs(n) >= 1e6 ? `$${dec(n / 1e6, 1)}M` : `$${Math.round(n / 1000)}k`)
 
 export default function Resultados() {
+  const { modo } = useStore()
+  return modo === 'real' ? <ResultadosReal /> : <ResultadosDemo />
+}
+
+function ResultadosDemo() {
   const { vacio, cargaLenta } = useStore()
   const loading = useFakeLoading(cargaLenta ? 2500 : 700)
   const datos = vacio ? [] : RESULTADOS

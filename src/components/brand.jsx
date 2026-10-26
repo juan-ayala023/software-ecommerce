@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { Play, ImageIcon } from 'lucide-react'
 import { cn } from './ui'
 
@@ -64,5 +64,18 @@ export function Thumb({ hue = 24, emoji, className, video, children, rounded = '
 }
 
 export function ProductThumb({ p, className }) {
+  const [rota, setRota] = useState(false)
+  if (p.imagen && !rota) {
+    return (
+      <img
+        src={p.imagen}
+        alt=""
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setRota(true)}
+        className={cn('shrink-0 rounded-xl bg-panel object-cover', className)}
+      />
+    )
+  }
   return <Thumb hue={p.hue} emoji={p.emoji} className={className} />
 }
