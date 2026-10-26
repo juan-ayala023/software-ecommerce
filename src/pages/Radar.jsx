@@ -4,6 +4,7 @@ import { Rocket, Search, RefreshCw, Check, X, Package, TrendingUp, Boxes, Store,
 import { Badge, Button, Card, EmptyState, Input, PageHeader, Select, Semaforo, Skeleton, cn, useFakeLoading, useToast } from '../components/ui'
 import { ProductThumb } from '../components/brand'
 import DemoAviso from '../components/DemoAviso'
+import RadarReal from './RadarReal'
 import { useStore } from '../store'
 import { FILTROS_RADAR, PRODUCTOS, nivelCompetencia } from '../data/mock'
 import { cop, miles } from '../lib/format'
@@ -11,6 +12,11 @@ import { cop, miles } from '../lib/format'
 const NIVEL_TXT = { green: 'Baja', yellow: 'Media', red: 'Alta' }
 
 export default function RadarPage() {
+  const { modo } = useStore()
+  return modo === 'real' ? <RadarReal /> : <RadarDemo />
+}
+
+function RadarDemo() {
   const { vacio, cargaLenta, crearLanzamiento, lanzamientos } = useStore()
   const nav = useNavigate()
   const toast = useToast()
